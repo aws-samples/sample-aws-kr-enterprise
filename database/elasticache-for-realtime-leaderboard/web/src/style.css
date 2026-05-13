@@ -1,0 +1,486 @@
+/* Real-Time Leaderboard Demo — Apple-style dark dashboard. */
+
+:root {
+  /* Surface (Dark Mode Elevation Stack) */
+  --color-bg-canvas:        #000000;
+  --color-bg-surface:       #1C1C1E;
+  --color-bg-elevated:      #2C2C2E;
+  --color-bg-hover:         #3A3A3C;
+
+  /* Labels */
+  --color-label-primary:    #F5F5F7;
+  --color-label-secondary:  #A1A1A6;
+  --color-label-tertiary:   #8E8E93;
+  --color-label-quaternary: #424245;
+
+  /* Separators (hairlines only — no heavy borders in dark mode) */
+  --color-separator:        rgba(84, 84, 88, 0.65);
+  --color-separator-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-hairline:  rgba(255, 255, 255, 0.08);
+
+  /* Accent / Semantic (Apple Dark palette) */
+  --color-blue:    #0A84FF;
+  --color-green:   #30D158;
+  --color-orange:  #FF9F0A;
+  --color-red:     #FF453A;
+  --color-purple:  #BF5AF2;
+  --color-teal:    #64D2FF;
+
+  /* Typography */
+  --font-system: "SF Pro Display", "SF Pro Text", -apple-system,
+                 BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Roboto, sans-serif;
+  --font-mono:   "SF Mono", ui-monospace, "JetBrains Mono", Monaco, monospace;
+
+  /* Size scale (Apple dashboard tuned) */
+  --text-micro:     11px;
+  --text-caption:   12px;
+  --text-subhead:   13px;
+  --text-callout:   14px;
+  --text-body:      15px;
+  --text-heading:   17px;
+  --text-kpi:       24px;
+  --text-kpi-large: 28px;
+
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+
+  /* Letter-spacing */
+  --tracking-tight:   -0.022em;
+  --tracking-kpi:     -0.02em;
+  --tracking-caption:  0.04em;
+
+  /* Spacing (8pt grid) */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+
+  /* Shadows (dark mode relies on border + elevation, shadow is subtle) */
+  --shadow-card:  0 1px 0 rgba(255, 255, 255, 0.04) inset,
+                  0 4px 12px rgba(0, 0, 0, 0.32);
+  --shadow-hover: 0 1px 0 rgba(255, 255, 255, 0.06) inset,
+                  0 6px 16px rgba(0, 0, 0, 0.40);
+
+  /* Motion */
+  --transition-fast: 0.2s ease;
+  --transition-nav:  0.15s ease;
+
+  /* Layout */
+  --sidebar-width: 360px;
+  --content-max:   1400px;
+  --nav-height:    52px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-system);
+  background: var(--color-bg-canvas);
+  color: var(--color-label-primary);
+  min-height: 100vh;
+  line-height: 1.5;
+  letter-spacing: var(--tracking-tight);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Header */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-6);
+  height: var(--nav-height);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-separator);
+}
+
+header h1 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--color-label-primary);
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.header-controls label {
+  color: var(--color-label-secondary);
+  font-size: var(--text-subhead);
+}
+
+#game-select {
+  background: var(--color-bg-elevated);
+  color: var(--color-label-primary);
+  border: 1px solid var(--color-border-hairline);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: var(--text-subhead);
+  font-family: var(--font-system);
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition-nav);
+}
+
+#game-select:focus {
+  border-color: var(--color-blue);
+}
+
+/* Poll status indicator */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-green);
+  display: inline-block;
+  transition: background var(--transition-fast);
+}
+
+.status-dot.active {
+  background: var(--color-blue);
+}
+
+.status-dot.error {
+  background: var(--color-red);
+}
+
+/* Main layout */
+main {
+  display: grid;
+  /* minmax(0, 1fr) prevents inner table overflow from pushing the sidebar */
+  grid-template-columns: minmax(0, 1fr) var(--sidebar-width);
+  gap: var(--space-6);
+  padding: var(--space-6);
+  max-width: var(--content-max);
+  margin: 0 auto;
+}
+
+@media (max-width: 1024px) {
+  main {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+    padding: var(--space-4);
+  }
+}
+
+/* Sections */
+section,
+aside {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-separator-subtle);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  min-width: 0;
+}
+
+h2 {
+  font-size: var(--text-callout);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caption);
+  color: var(--color-label-secondary);
+  margin-bottom: var(--space-4);
+}
+
+/* Leaderboard table */
+#leaderboard-container {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+#leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-subhead);
+}
+
+#leaderboard-table thead {
+  position: sticky;
+  top: 0;
+  /* Transparent header cells — header blends with section surface (Apple rule) */
+  background: var(--color-bg-surface);
+  z-index: 1;
+}
+
+#leaderboard-table th {
+  text-align: left;
+  padding: var(--space-2) var(--space-4);
+  font-weight: var(--weight-semibold);
+  color: var(--color-label-secondary);
+  border-bottom: 1px solid var(--color-separator-subtle);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caption);
+  background: transparent;
+}
+
+#leaderboard-table td {
+  padding: 10px var(--space-4);
+  border-bottom: 1px solid var(--color-separator-subtle);
+}
+
+#leaderboard-table tbody tr {
+  transition: background var(--transition-fast);
+}
+
+#leaderboard-table tbody tr:hover {
+  /* Surface shift only — no scale/border changes (Apple rule) */
+  background: var(--color-bg-elevated);
+}
+
+.col-rank {
+  width: 60px;
+  font-family: var(--font-mono);
+  color: var(--color-label-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.col-user {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-label-primary);
+}
+
+.col-score {
+  width: 120px;
+  text-align: right;
+  font-family: var(--font-system);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  /* Primary label, not accent blue — Apple doesn't color numbers */
+  color: var(--color-label-primary);
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--color-label-secondary);
+  padding: var(--space-10) var(--space-3) !important;
+}
+
+/* Controls */
+#load-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.load-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--color-bg-elevated);
+  color: var(--color-label-primary);
+  border: 1px solid var(--color-border-hairline);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-system);
+  font-size: var(--text-subhead);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+  text-align: left;
+}
+
+.load-btn:hover:not(:disabled) {
+  /* Surface elevation shift only — never solid-fill blue hover (Apple rule) */
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-hairline);
+}
+
+.load-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Load status */
+#load-status {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-separator-subtle);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-subhead);
+  margin-bottom: var(--space-5);
+}
+
+.status-label {
+  color: var(--color-label-secondary);
+  margin-right: var(--space-2);
+}
+
+#load-status-text {
+  font-family: var(--font-mono);
+  color: var(--color-label-primary);
+}
+
+#load-status-text.status-running {
+  color: var(--color-orange);
+}
+
+/* Dashboard section — shares aside background, separated from status box by h2 spacing */
+#dashboard-section {
+  margin-top: 0;
+}
+
+#dashboard-section > h2 {
+  margin-top: var(--space-5);
+}
+
+.metrics-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.metric-card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-separator-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5) 18px;
+  display: flex;
+  flex-direction: column;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+  min-width: 0;
+}
+
+.metric-card:hover {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-hairline);
+}
+
+.metric-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.metric-card__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semibold);
+  color: var(--color-label-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caption);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-card__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.metric-card__delta {
+  font-size: var(--text-micro);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.metric-card__delta--up   { color: var(--color-green); }
+.metric-card__delta--down { color: var(--color-red); }
+.metric-card__delta--flat { color: var(--color-label-tertiary); }
+
+.metric-card__value-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  min-width: 0;
+}
+
+.metric-card__value {
+  font-family: var(--font-system);
+  font-size: var(--text-kpi);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-kpi);
+  color: var(--color-label-primary);
+  line-height: 1.1;
+}
+
+.metric-card__unit {
+  font-size: var(--text-subhead);
+  font-weight: var(--weight-regular);
+  color: var(--color-label-secondary);
+}
+
+.metric-card__sparkline {
+  margin-top: var(--space-3);
+  height: 36px;
+  width: 100%;
+  display: block;
+}
+
+.metric-card__sparkline svg.sparkline {
+  width: 100%;
+  height: 36px;
+  display: block;
+}
+
+.metrics-footer {
+  margin-top: var(--space-3);
+  text-align: right;
+}
+
+.metrics-status {
+  font-size: var(--text-micro);
+  color: var(--color-label-tertiary);
+  font-family: var(--font-mono);
+}
+
+.metrics-status.metrics-error {
+  color: var(--color-red);
+  font-weight: var(--weight-medium);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-bg-elevated);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-bg-hover);
+}
+
+/* Keyboard focus — visible ring for accessibility. */
+.load-btn:focus-visible,
+#game-select:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
