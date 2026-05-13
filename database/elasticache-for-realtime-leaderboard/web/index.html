@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real-Time Leaderboard Demo</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Real-Time Leaderboard</h1>
+      <div class="header-controls">
+        <label for="game-select">Game:</label>
+        <select id="game-select">
+          <option value="arena-shooter">Arena Shooter</option>
+          <option value="puzzle-01">Puzzle 01</option>
+          <option value="racing-mini">Racing Mini</option>
+        </select>
+        <span id="poll-status" class="status-dot"></span>
+      </div>
+    </header>
+
+    <main>
+      <section id="leaderboard-section">
+        <h2>Top 100 Leaderboard</h2>
+        <div id="leaderboard-container">
+          <table id="leaderboard-table">
+            <thead>
+              <tr>
+                <th class="col-rank">#</th>
+                <th class="col-user">Player</th>
+                <th class="col-score">Score</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-body">
+              <tr>
+                <td colspan="3" class="empty-state">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside id="controls-section">
+        <h2>Load Generator</h2>
+        <div id="load-controls">
+          <button class="load-btn" data-pattern="sustain_5k_5min">
+            Sustain 5K x 5min
+          </button>
+          <button class="load-btn" data-pattern="sustain_5k_1min">
+            Sustain 5K x 1min
+          </button>
+        </div>
+        <div id="load-status">
+          <span class="status-label">Status:</span>
+          <span id="load-status-text">Idle</span>
+        </div>
+
+        <div id="dashboard-section">
+          <h2>Metrics</h2>
+        </div>
+      </aside>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

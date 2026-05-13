@@ -17,6 +17,7 @@ AWS 데이터베이스 서비스를 활용한 데모 및 샘플 코드 모음입
 |---------|------|------------|
 | [aurora-mysql-parameter-group-tuning](./aurora-mysql-parameter-group-tuning/) | Aurora MySQL 3.10.3(LTS) Parameter Group 통합 튜닝 가이드. db.r7g.8xlarge(Graviton3) 대상 IDC 호환성 변경 및 Aurora 전용 파라미터 최적화 | Amazon Aurora MySQL |
 | [valkey-migration](./valkey-migration/) | Redis 7.4.6에서 ElastiCache for Valkey 8.2로의 온라인 마이그레이션 테스트. CDK TypeScript 인프라 자동화, 마이그레이션 테스트 결과 및 대안 방법 분석 포함 | Amazon ElastiCache, Redis, Valkey |
+| [elasticache-for-realtime-leaderboard](./elasticache-for-realtime-leaderboard/) | ElastiCache for Valkey 8.0 기반 실시간 게임 리더보드 레퍼런스 아키텍처. SQS + Lambda + Valkey ZSET + DynamoDB 조합으로 5,000 TPS 수집, p95 읽기 100ms 미만, 메시지 손실 0% 달성. Apple 스타일 데모 웹 + 부하 생성기 + CloudWatch 대시보드 포함 | Amazon ElastiCache, AWS Lambda, Amazon SQS, Amazon DynamoDB |
 
 ## 참고 리소스
 
