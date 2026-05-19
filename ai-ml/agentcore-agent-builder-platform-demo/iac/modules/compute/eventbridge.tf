@@ -16,7 +16,7 @@ resource "aws_cloudwatch_event_connection" "platform" {
 
 resource "aws_cloudwatch_event_api_destination" "platform_alarm" {
   name                             = "${var.prefix}-alarm-api-dest"
-  invocation_endpoint              = "https://aiops-v2.${var.domain_name}/api/events/alarm"
+  invocation_endpoint              = var.domain_name != "" ? "https://aiops-v2.${var.domain_name}/api/events/alarm" : "https://${var.platform_domain}/api/events/alarm"
   http_method                      = "POST"
   invocation_rate_limit_per_second = 10
 

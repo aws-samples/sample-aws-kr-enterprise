@@ -89,3 +89,15 @@ variable "tags" {
   description = "Common tags"
   default     = {}
 }
+
+variable "enable_https_listener" {
+  type        = bool
+  description = "Enable HTTPS listener (requires ACM cert)"
+  default     = true
+}
+
+variable "platform_domain" {
+  type        = string
+  description = "Platform domain (CloudFront distribution domain when no custom domain)"
+  default     = ""
+}

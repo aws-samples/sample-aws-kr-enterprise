@@ -229,10 +229,11 @@ resource "aws_lb_listener_rule" "frontend" {
 }
 
 ################################################################################
-# HTTPS Listener (port 443)
+# HTTPS Listener (port 443) — requires ACM certificate
 ################################################################################
 
 resource "aws_lb_listener" "https" {
+  count             = var.enable_https_listener ? 1 : 0
   load_balancer_arn = aws_lb.main.arn
   port              = 443
   protocol          = "HTTPS"
@@ -254,11 +255,12 @@ resource "aws_lb_listener" "https" {
 }
 
 ################################################################################
-# HTTPS Listener Rules (Cognito auth)
+# HTTPS Listener Rules (Cognito auth) — conditional
 ################################################################################
 
 resource "aws_lb_listener_rule" "https_api" {
-  listener_arn = aws_lb_listener.https.arn
+  count        = var.enable_https_listener ? 1 : 0
+  listener_arn = aws_lb_listener.https[0].arn
   priority     = 100
 
   action {
@@ -299,7 +301,8 @@ resource "aws_lb_listener_rule" "https_api" {
 }
 
 resource "aws_lb_listener_rule" "https_frontend" {
-  listener_arn = aws_lb_listener.https.arn
+  count        = var.enable_https_listener ? 1 : 0
+  listener_arn = aws_lb_listener.https[0].arn
   priority     = 200
 
   action {

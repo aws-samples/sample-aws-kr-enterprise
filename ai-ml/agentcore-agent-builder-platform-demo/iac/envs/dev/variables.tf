@@ -24,7 +24,8 @@ variable "vpc_cidr" {
 
 variable "domain_name" {
   type        = string
-  description = "Route53 hosted zone domain name"
+  default     = ""
+  description = "Route53 hosted zone domain name (optional — if empty, uses CloudFront default domain)"
 }
 
 variable "cloudfront_secret" {

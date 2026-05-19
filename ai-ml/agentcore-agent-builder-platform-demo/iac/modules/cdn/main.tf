@@ -48,7 +48,7 @@ resource "aws_cloudfront_origin_request_policy" "all_viewer" {
 resource "aws_cloudfront_distribution" "main" {
   enabled         = true
   comment         = "${var.prefix} platform"
-  aliases         = ["aiops-v2.${var.domain_name}"]
+  aliases         = var.domain_name != "" ? ["aiops-v2.${var.domain_name}"] : []
   is_ipv6_enabled = true
 
   origin {
@@ -58,7 +58,7 @@ resource "aws_cloudfront_distribution" "main" {
     custom_origin_config {
       http_port                = 80
       https_port               = 443
-      origin_protocol_policy   = "https-only"
+      origin_protocol_policy   = var.domain_name != "" ? "https-only" : "http-only"
       origin_ssl_protocols     = ["TLSv1.2"]
       origin_read_timeout      = 120
       origin_keepalive_timeout = 120
@@ -93,10 +93,20 @@ resource "aws_cloudfront_distribution" "main" {
     origin_request_policy_id = aws_cloudfront_origin_request_policy.all_viewer.id
   }
 
-  viewer_certificate {
-    acm_certificate_arn      = var.acm_cert_arn_cloudfront
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = "TLSv1.2_2021"
+  dynamic "viewer_certificate" {
+    for_each = var.domain_name != "" ? [1] : []
+    content {
+      acm_certificate_arn      = var.acm_cert_arn_cloudfront
+      ssl_support_method       = "sni-only"
+      minimum_protocol_version = "TLSv1.2_2021"
+    }
+  }
+
+  dynamic "viewer_certificate" {
+    for_each = var.domain_name != "" ? [] : [1]
+    content {
+      cloudfront_default_certificate = true
+    }
   }
 
   restrictions {
