@@ -5,6 +5,7 @@ import { ReactFlow, Background, Controls, type Node, type Edge } from '@xyflow/r
 import dagre from 'dagre';
 import Header from '@/components/common/Header';
 import AgentNode from '@/components/traces/AgentNode';
+import SpanDetailPanel from '@/components/traces/SpanDetailPanel';
 import { obs } from '@/lib/api-client';
 import type { OtelSpan, TraceSession } from '@/lib/types';
 import '@xyflow/react/dist/style.css';
@@ -20,6 +21,7 @@ export default function TracesPage() {
   const [loading, setLoading] = useState(true);
   const [traceLoading, setTraceLoading] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string>('');
+  const [selectedSpan, setSelectedSpan] = useState<OtelSpan | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -174,16 +176,34 @@ export default function TracesPage() {
                 {mode === 'waterfall' ? 'Waterfall' : mode === 'graph' ? 'Graph' : 'JSON'}
               </button>
             ))}
-            {selectedTrace && (
-              <span className="ml-auto text-[10px] font-mono text-[var(--text-muted)]">
-                {selectedTrace} · {spans.length} spans
-              </span>
+            {selectedTrace && spans.length > 0 && (
+              <div className="ml-auto flex items-center gap-3 text-[10px]">
+                <span className="font-mono text-white">
+                  {((timeRange.max - timeRange.min) / 1_000_000).toFixed(0)}ms
+                </span>
+                <span className="text-[var(--text-muted)]">
+                  {spans.length} spans
+                </span>
+                {(() => {
+                  const totalTokens = spans.reduce((sum, s) => sum + (s.totalTokens ?? 0), 0);
+                  return totalTokens > 0 ? (
+                    <span className="font-mono text-[var(--purple)]">{totalTokens.toLocaleString()} tokens</span>
+                  ) : null;
+                })()}
+                {(() => {
+                  const errorCount = spans.filter((s) => s.toolStatus === 'error').length;
+                  return errorCount > 0 ? (
+                    <span className="font-mono text-[var(--red)] font-bold">{errorCount} errors</span>
+                  ) : null;
+                })()}
+              </div>
             )}
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-auto p-4">
-            {!selectedTrace ? (
+          <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 overflow-auto p-4">
+              {!selectedTrace ? (
               <div className="text-sm text-[var(--text-dim)] text-center py-16">
                 좌측에서 trace를 선택하세요
               </div>
@@ -193,12 +213,25 @@ export default function TracesPage() {
                 <div className="skeleton h-8 w-3/4" />
                 <div className="skeleton h-8 w-1/2" />
               </div>
-            ) : viewMode === 'waterfall' ? (
-              <WaterfallView spans={sortedSpans} timeRange={timeRange} />
-            ) : viewMode === 'graph' ? (
-              <GraphView spans={sortedSpans} />
-            ) : (
-              <JsonView spans={spans} traceId={selectedTrace} />
+              ) : viewMode === 'waterfall' ? (
+                <WaterfallView
+                  spans={sortedSpans}
+                  timeRange={timeRange}
+                  selectedSpan={selectedSpan}
+                  onSelectSpan={setSelectedSpan}
+                />
+              ) : viewMode === 'graph' ? (
+                <GraphView spans={sortedSpans} onSelectSpan={setSelectedSpan} />
+              ) : (
+                <JsonView spans={spans} traceId={selectedTrace} />
+              )}
+            </div>
+            {selectedSpan && (
+              <SpanDetailPanel
+                span={selectedSpan}
+                allSpans={sortedSpans}
+                onClose={() => setSelectedSpan(null)}
+              />
             )}
           </div>
         </div>
@@ -216,9 +249,63 @@ function spanColor(name: string): string {
   return 'var(--text-muted)';
 }
 
+function computeCriticalPath(spans: OtelSpan[]): Set<string> {
+  const criticalIds = new Set<string>();
+  if (spans.length === 0) return criticalIds;
+
+  const spanMap = new Map(spans.map((s) => [s.spanId, s]));
+  const childrenMap = new Map<string, OtelSpan[]>();
+  spans.forEach((s) => {
+    if (s.parentSpanId && spanMap.has(s.parentSpanId)) {
+      const children = childrenMap.get(s.parentSpanId) ?? [];
+      children.push(s);
+      childrenMap.set(s.parentSpanId, children);
+    }
+  });
+
+  function longestPath(spanId: string): string[] {
+    const children = childrenMap.get(spanId) ?? [];
+    if (children.length === 0) return [spanId];
+    let best: string[] = [];
+    let bestDur = 0;
+    for (const child of children) {
+      const dur = (child.endTimeUnixNano ?? 0) - (child.startTimeUnixNano ?? 0);
+      const path = longestPath(child.spanId);
+      if (dur > bestDur || (dur === bestDur && path.length > best.length)) {
+        best = path;
+        bestDur = dur;
+      }
+    }
+    return [spanId, ...best];
+  }
+
+  const roots = spans.filter((s) => !s.parentSpanId || !spanMap.has(s.parentSpanId));
+  for (const root of roots) {
+    longestPath(root.spanId).forEach((id) => criticalIds.add(id));
+  }
+  return criticalIds;
+}
+
+function hasErrorInSubtree(span: OtelSpan, spans: OtelSpan[]): boolean {
+  if (span.toolStatus === 'error') return true;
+  const children = spans.filter((s) => s.parentSpanId === span.spanId);
+  return children.some((c) => hasErrorInSubtree(c, spans));
+}
+
+function computeDepth(span: OtelSpan, spans: OtelSpan[]): number {
+  let depth = 0;
+  let currentId = span.parentSpanId;
+  const spanMap = new Map(spans.map((s) => [s.spanId, s]));
+  while (currentId && spanMap.has(currentId)) {
+    depth++;
+    currentId = spanMap.get(currentId)!.parentSpanId;
+  }
+  return depth;
+}
+
 const nodeTypes = { agentNode: AgentNode };
 
-function GraphView({ spans }: { spans: OtelSpan[] }) {
+function GraphView({ spans, onSelectSpan }: { spans: OtelSpan[]; onSelectSpan: (span: OtelSpan) => void }) {
   const { nodes, edges } = useMemo(() => {
     if (spans.length === 0) return { nodes: [] as Node[], edges: [] as Edge[] };
 
@@ -283,6 +370,10 @@ function GraphView({ spans }: { spans: OtelSpan[] }) {
         minZoom={0.3}
         maxZoom={1.5}
         defaultEdgeOptions={{ type: 'smoothstep' }}
+        onNodeClick={(_event, node) => {
+          const span = (node.data as { span: OtelSpan }).span;
+          onSelectSpan(span);
+        }}
       >
         <Background color="var(--border)" gap={20} />
         <Controls className="!bg-[var(--surface)] !border-[var(--border)] [&>button]:!bg-[var(--surface)] [&>button]:!border-[var(--border)] [&>button]:!text-[var(--text-dim)]" />
@@ -291,42 +382,93 @@ function GraphView({ spans }: { spans: OtelSpan[] }) {
   );
 }
 
-function WaterfallView({ spans, timeRange }: { spans: OtelSpan[]; timeRange: { min: number; max: number } }) {
+function WaterfallView({
+  spans,
+  timeRange,
+  selectedSpan,
+  onSelectSpan,
+}: {
+  spans: OtelSpan[];
+  timeRange: { min: number; max: number };
+  selectedSpan: OtelSpan | null;
+  onSelectSpan: (span: OtelSpan) => void;
+}) {
   const totalDuration = timeRange.max - timeRange.min;
+  const criticalPath = useMemo(() => computeCriticalPath(spans), [spans]);
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5">
       {spans.map((span, idx) => {
         const start = ((span.startTimeUnixNano ?? timeRange.min) - timeRange.min) / totalDuration;
         const end = ((span.endTimeUnixNano ?? span.startTimeUnixNano ?? timeRange.min) - timeRange.min) / totalDuration;
         const width = Math.max(end - start, 0.005);
-        const durationMs = span.startTimeUnixNano && span.endTimeUnixNano
+        const dur = span.startTimeUnixNano && span.endTimeUnixNano
           ? ((span.endTimeUnixNano - span.startTimeUnixNano) / 1_000_000).toFixed(0)
           : null;
-        const depth = span.parentSpanId ? 1 : 0;
+        const depth = computeDepth(span, spans);
         const color = spanColor(span.name);
+        const isCritical = criticalPath.has(span.spanId);
+        const isError = span.toolStatus === 'error' || hasErrorInSubtree(span, spans);
+        const isSelected = selectedSpan?.spanId === span.spanId;
 
         return (
-          <div key={span.spanId || idx} className="flex items-center gap-2 group">
-            <div className="w-48 shrink-0 text-xs truncate text-[var(--text-dim)]" style={{ paddingLeft: `${depth * 16}px` }}>
-              {span.name}
+          <div
+            key={span.spanId || idx}
+            onClick={() => onSelectSpan(span)}
+            className={`flex items-center gap-2 cursor-pointer rounded px-1 py-0.5 transition-colors ${
+              isSelected
+                ? 'bg-[var(--purple)]/15 ring-1 ring-[var(--purple)]/40'
+                : 'hover:bg-[var(--surface-hover)]'
+            }`}
+          >
+            <div
+              className="w-52 shrink-0 flex items-center gap-1.5 text-xs truncate"
+              style={{ paddingLeft: `${depth * 14}px` }}
+            >
+              {isError && <span className="w-1.5 h-1.5 rounded-full bg-[var(--red)] shrink-0" />}
+              <span className={`truncate ${isError ? 'text-[var(--red)]' : 'text-[var(--text-dim)]'}`}>
+                {span.toolName || span.name}
+              </span>
             </div>
-            <div className="flex-1 h-6 relative bg-[var(--surface)] rounded overflow-hidden">
+            <div className="flex-1 h-7 relative bg-[var(--surface)] rounded overflow-hidden">
               <div
-                className="absolute h-full rounded opacity-80 group-hover:opacity-100 transition-opacity"
+                className={`absolute h-full rounded transition-opacity ${
+                  isCritical ? 'opacity-100' : 'opacity-60'
+                } ${isSelected ? 'ring-1 ring-white/30' : ''}`}
                 style={{
                   left: `${start * 100}%`,
                   width: `${width * 100}%`,
-                  backgroundColor: color,
-                  minWidth: '2px',
+                  backgroundColor: isError ? 'var(--red)' : color,
+                  minWidth: '3px',
                 }}
               />
-              {durationMs && (
+              {dur && (
                 <span
-                  className="absolute text-[10px] font-mono text-white top-1"
+                  className="absolute text-[10px] font-mono text-white/90 top-1.5"
                   style={{ left: `${(start + width) * 100 + 0.5}%` }}
                 >
-                  {durationMs}ms
+                  {dur}ms
+                </span>
+              )}
+            </div>
+            <div className="w-36 shrink-0 flex items-center gap-1.5">
+              {span.totalTokens != null && span.totalTokens > 0 && (
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--purple)]/15 text-[var(--purple)]">
+                  {span.totalTokens}t
+                </span>
+              )}
+              {span.toolStatus && (
+                <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
+                  span.toolStatus === 'success'
+                    ? 'bg-[var(--success)]/15 text-[var(--success)]'
+                    : 'bg-[var(--red)]/15 text-[var(--red)]'
+                }`}>
+                  {span.toolStatus}
+                </span>
+              )}
+              {isCritical && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--warning)]/15 text-[var(--warning)]">
+                  critical
                 </span>
               )}
             </div>

@@ -12,11 +12,13 @@ COPY mcp_connector.py .
 COPY side_channel.py .
 COPY harness.py .
 COPY observability_hook.py .
+COPY span_filter.py .
 COPY internal_tools/ ./internal_tools/
 
 ENV AGENT_ID="" \
     DYNAMODB_TABLE="aiops-platform" \
-    AWS_REGION="ap-northeast-2"
+    AWS_REGION="ap-northeast-2" \
+    OTEL_PYTHON_DISABLED_INSTRUMENTATIONS="urllib3,requests,httpx"
 
 EXPOSE 8080
 CMD ["opentelemetry-instrument", "python", "agent_runner.py"]

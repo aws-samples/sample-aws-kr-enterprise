@@ -18,6 +18,7 @@ from harness import Tier2Harness
 from internal_tools import create_internal_tool, _request_context
 from observability_hook import ObservabilityHook
 from opentelemetry import trace
+from span_filter import AgentSpanProcessor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -215,6 +216,17 @@ def _initialize_agent():
             },
         )
         logger.info("=== Agent Initialization Complete ===")
+
+        # OTEL SpanProcessor 등록 — 모든 span에 agent.id, session.id, phase 자동 주입
+        try:
+            from opentelemetry.sdk.trace import TracerProvider
+
+            tracer_provider = trace.get_tracer_provider()
+            if isinstance(tracer_provider, TracerProvider):
+                tracer_provider.add_span_processor(AgentSpanProcessor())
+                logger.info("AgentSpanProcessor registered")
+        except Exception as e:
+            logger.warning("SpanProcessor registration skipped: %s", e)
 
 
 async def _stream_agent(body: dict):
