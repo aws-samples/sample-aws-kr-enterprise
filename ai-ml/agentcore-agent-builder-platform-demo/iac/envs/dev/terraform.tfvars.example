@@ -1,0 +1,9 @@
+# Required — copy to terraform.tfvars and fill in your values
+# DO NOT commit terraform.tfvars (it contains secrets)
+
+aws_region        = "ap-northeast-2"
+project           = "aiops-v2"
+env               = "dev"
+vpc_cidr          = "10.1.0.0/16"
+domain_name       = "your-domain.com"
+cloudfront_secret = "CHANGE_ME_TO_A_RANDOM_SECRET"
