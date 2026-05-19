@@ -1,0 +1,9 @@
+# code/agent/Dockerfile.report
+# Per review B-M4: use build arg for ECR base reference
+ARG BASE_IMAGE=aiops-base-image:latest
+FROM ${BASE_IMAGE}
+
+COPY report_tools/ ./report_tools/
+COPY report_tools/templates/ ./templates/
+
+RUN pip install --no-cache-dir jinja2
