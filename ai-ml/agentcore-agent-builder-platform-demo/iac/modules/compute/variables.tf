@@ -53,24 +53,14 @@ variable "platform_table_name" {
   description = "DynamoDB platform table name"
 }
 
-variable "cognito_user_pool_arn" {
+variable "cognito_user_pool_id" {
   type        = string
-  description = "Cognito User Pool ARN"
+  description = "Cognito User Pool ID for JWT verification"
 }
 
 variable "cognito_client_id" {
   type        = string
   description = "Cognito User Pool Client ID"
-}
-
-variable "cognito_domain" {
-  type        = string
-  description = "Cognito User Pool Domain"
-}
-
-variable "acm_cert_arn" {
-  type        = string
-  description = "ACM certificate ARN for ALB HTTPS listener (regional)"
 }
 
 variable "cloudfront_secret" {
@@ -88,12 +78,6 @@ variable "tags" {
   type        = map(string)
   description = "Common tags"
   default     = {}
-}
-
-variable "enable_https_listener" {
-  type        = bool
-  description = "Enable HTTPS listener (requires ACM cert)"
-  default     = true
 }
 
 variable "platform_domain" {

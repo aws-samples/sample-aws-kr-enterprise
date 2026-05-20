@@ -9,8 +9,9 @@ import boto3
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import agents, builder, chat, events, gateways, health, obs, sessions
+from routers import agents, auth, builder, chat, events, gateways, health, obs, sessions
 from services.agentcore_client import AgentCoreClient
+from services.auth_middleware import CognitoAuthMiddleware
 from services.builder_service import BuilderService
 from services.dynamodb_service import DynamoDBService
 from services.harness import Tier1Harness
@@ -54,8 +55,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(CognitoAuthMiddleware)
 app.add_middleware(OtelMiddleware, service_name="platform-api")
 
+app.include_router(auth.router)
 app.include_router(health.router)
 app.include_router(agents.router)
 app.include_router(builder.router)

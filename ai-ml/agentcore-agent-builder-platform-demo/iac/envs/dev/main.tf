@@ -33,13 +33,6 @@ locals {
 
 data "aws_caller_identity" "current" {}
 
-data "aws_acm_certificate" "alb" {
-  count       = local.use_custom_domain ? 1 : 0
-  domain      = "*.${var.domain_name}"
-  statuses    = ["ISSUED"]
-  most_recent = true
-}
-
 data "aws_acm_certificate" "cloudfront" {
   count       = local.use_custom_domain ? 1 : 0
   provider    = aws.us_east_1
@@ -119,13 +112,10 @@ module "compute" {
   platform_api_task_role_arn = module.iam.platform_api_task_role_arn
   agentcore_runtime_role_arn = module.iam.agentcore_runtime_role_arn
   platform_table_name        = module.data.platform_table_name
-  cognito_user_pool_arn      = module.auth.user_pool_arn
+  cognito_user_pool_id       = module.auth.user_pool_id
   cognito_client_id          = module.auth.client_id
-  cognito_domain             = module.auth.domain
-  acm_cert_arn               = local.use_custom_domain ? data.aws_acm_certificate.alb[0].arn : ""
   cloudfront_secret          = var.cloudfront_secret
   domain_name                = var.domain_name
-  enable_https_listener      = local.use_custom_domain
   platform_domain            = module.cdn.platform_distribution_domain
   tags                       = local.common_tags
 }
