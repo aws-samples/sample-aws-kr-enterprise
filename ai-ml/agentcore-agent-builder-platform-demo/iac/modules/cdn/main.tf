@@ -42,6 +42,29 @@ resource "aws_cloudfront_origin_request_policy" "all_viewer" {
 }
 
 ################################################################################
+# CloudFront VPC Origin (Internal ALB)
+################################################################################
+
+resource "aws_cloudfront_vpc_origin" "alb" {
+  vpc_origin_endpoint_config {
+    name                   = "${var.prefix}-alb-origin"
+    arn                    = var.alb_arn
+    http_port              = 80
+    https_port             = 443
+    origin_protocol_policy = "http-only"
+
+    origin_ssl_protocols {
+      items    = ["TLSv1.2"]
+      quantity = 1
+    }
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.prefix}-vpc-origin"
+  })
+}
+
+################################################################################
 # CloudFront — Platform Distribution (ALB Origin)
 ################################################################################
 
@@ -55,18 +78,8 @@ resource "aws_cloudfront_distribution" "main" {
     domain_name = var.alb_dns
     origin_id   = "alb"
 
-    custom_origin_config {
-      http_port                = 80
-      https_port               = 443
-      origin_protocol_policy   = var.domain_name != "" ? "https-only" : "http-only"
-      origin_ssl_protocols     = ["TLSv1.2"]
-      origin_read_timeout      = 120
-      origin_keepalive_timeout = 120
-    }
-
-    custom_header {
-      name  = "X-CloudFront-Secret"
-      value = var.cloudfront_secret
+    vpc_origin_config {
+      vpc_origin_id = aws_cloudfront_vpc_origin.alb.id
     }
   }
 

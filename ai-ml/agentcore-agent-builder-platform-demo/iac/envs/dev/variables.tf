@@ -27,9 +27,3 @@ variable "domain_name" {
   default     = ""
   description = "Route53 hosted zone domain name (optional — if empty, uses CloudFront default domain)"
 }
-
-variable "cloudfront_secret" {
-  type        = string
-  sensitive   = true
-  description = "Shared secret for CloudFront → ALB origin validation"
-}

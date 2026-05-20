@@ -18,14 +18,9 @@ variable "vpc_cidr" {
   description = "VPC CIDR for security group rules"
 }
 
-variable "public_subnet_ids" {
-  type        = list(string)
-  description = "Public subnet IDs for ALB"
-}
-
 variable "private_subnet_ids" {
   type        = list(string)
-  description = "Private subnet IDs for ECS tasks"
+  description = "Private subnet IDs for ECS tasks and internal ALB"
 }
 
 variable "ecr_repo_urls" {
@@ -61,12 +56,6 @@ variable "cognito_user_pool_id" {
 variable "cognito_client_id" {
   type        = string
   description = "Cognito User Pool Client ID"
-}
-
-variable "cloudfront_secret" {
-  type        = string
-  sensitive   = true
-  description = "Shared secret for CloudFront -> ALB header validation"
 }
 
 variable "domain_name" {

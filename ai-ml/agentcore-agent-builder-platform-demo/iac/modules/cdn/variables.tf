@@ -13,6 +13,11 @@ variable "alb_dns" {
   description = "ALB DNS name (origin for platform distribution)"
 }
 
+variable "alb_arn" {
+  type        = string
+  description = "Internal ALB ARN for VPC Origin"
+}
+
 variable "reports_bucket_regional_domain" {
   type        = string
   description = "S3 reports bucket regional domain name"
@@ -31,12 +36,6 @@ variable "reports_bucket_arn" {
 variable "acm_cert_arn_cloudfront" {
   type        = string
   description = "ACM certificate ARN in us-east-1 for CloudFront"
-}
-
-variable "cloudfront_secret" {
-  type        = string
-  sensitive   = true
-  description = "Shared secret header value for origin validation"
 }
 
 variable "route53_zone_id" {

@@ -18,7 +18,7 @@ provider "aws" {
 }
 
 locals {
-  prefix          = "${var.project}-${var.env}"
+  prefix            = "${var.project}-${var.env}"
   use_custom_domain = var.domain_name != ""
   common_tags = {
     Project     = var.project
@@ -76,13 +76,13 @@ module "auth" {
   callback_urls = local.use_custom_domain ? [
     "https://aiops-v2.${var.domain_name}/api/auth/callback",
     "https://aiops-v2.${var.domain_name}/oauth2/idpresponse",
-  ] : [
+    ] : [
     "https://${module.cdn.platform_distribution_domain}/api/auth/callback",
     "https://${module.cdn.platform_distribution_domain}/oauth2/idpresponse",
   ]
   logout_urls = local.use_custom_domain ? [
     "https://aiops-v2.${var.domain_name}",
-  ] : [
+    ] : [
     "https://${module.cdn.platform_distribution_domain}",
   ]
   tags = local.common_tags
@@ -105,7 +105,6 @@ module "compute" {
   aws_region                 = var.aws_region
   vpc_id                     = module.network.vpc_id
   vpc_cidr                   = module.network.vpc_cidr
-  public_subnet_ids          = module.network.public_subnet_ids
   private_subnet_ids         = module.network.private_subnet_ids
   ecr_repo_urls              = module.registry.repo_urls
   execution_role_arn         = module.iam.ecs_execution_role_arn
@@ -114,7 +113,6 @@ module "compute" {
   platform_table_name        = module.data.platform_table_name
   cognito_user_pool_id       = module.auth.user_pool_id
   cognito_client_id          = module.auth.client_id
-  cloudfront_secret          = var.cloudfront_secret
   domain_name                = var.domain_name
   platform_domain            = module.cdn.platform_distribution_domain
   tags                       = local.common_tags
@@ -125,11 +123,11 @@ module "cdn" {
   prefix                         = local.prefix
   domain_name                    = var.domain_name
   alb_dns                        = module.compute.alb_dns
+  alb_arn                        = module.compute.alb_arn
   reports_bucket_regional_domain = module.data.reports_bucket_regional_domain
   reports_bucket_id              = module.data.reports_bucket_name
   reports_bucket_arn             = module.data.reports_bucket_arn
   acm_cert_arn_cloudfront        = local.use_custom_domain ? data.aws_acm_certificate.cloudfront[0].arn : ""
-  cloudfront_secret              = var.cloudfront_secret
   route53_zone_id                = local.use_custom_domain ? data.aws_route53_zone.main[0].zone_id : ""
   tags                           = local.common_tags
 }

@@ -1,34 +1,18 @@
 ################################################################################
-# CloudFront Managed Prefix List
-################################################################################
-
-data "aws_ec2_managed_prefix_list" "cloudfront" {
-  name = "com.amazonaws.global.cloudfront.origin-facing"
-}
-
-################################################################################
 # ALB Security Group
 ################################################################################
 
 resource "aws_security_group" "alb" {
   name_prefix = "${var.prefix}-alb-"
   vpc_id      = var.vpc_id
-  description = "Security group for ALB — allows CloudFront only"
+  description = "Security group for internal ALB — VPC traffic only"
 
   ingress {
-    description     = "HTTPS from CloudFront"
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront.id]
-  }
-
-  ingress {
-    description     = "HTTP from CloudFront"
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront.id]
+    description = "HTTP from VPC (CloudFront VPC Origin)"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   egress {
@@ -96,10 +80,10 @@ resource "aws_security_group" "ecs" {
 
 resource "aws_lb" "main" {
   name               = "${var.prefix}-alb"
-  internal           = false
+  internal           = true
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = var.public_subnet_ids
+  subnets            = var.private_subnet_ids
   idle_timeout       = 300
 
   tags = merge(var.tags, {
@@ -154,7 +138,7 @@ resource "aws_lb_target_group" "platform_api" {
 }
 
 ################################################################################
-# HTTP Listener (port 80) — default 403
+# HTTP Listener (port 80) — default forwards to frontend
 ################################################################################
 
 resource "aws_lb_listener" "http" {
@@ -163,12 +147,8 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
-    type = "fixed-response"
-    fixed_response {
-      content_type = "text/plain"
-      message_body = "Forbidden"
-      status_code  = "403"
-    }
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend.arn
   }
 
   tags = merge(var.tags, {
@@ -195,35 +175,7 @@ resource "aws_lb_listener_rule" "api" {
     }
   }
 
-  condition {
-    http_header {
-      http_header_name = "X-CloudFront-Secret"
-      values           = [var.cloudfront_secret]
-    }
-  }
-
   tags = merge(var.tags, {
     Name = "${var.prefix}-api-rule"
-  })
-}
-
-resource "aws_lb_listener_rule" "frontend" {
-  listener_arn = aws_lb_listener.http.arn
-  priority     = 200
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.frontend.arn
-  }
-
-  condition {
-    http_header {
-      http_header_name = "X-CloudFront-Secret"
-      values           = [var.cloudfront_secret]
-    }
-  }
-
-  tags = merge(var.tags, {
-    Name = "${var.prefix}-frontend-rule"
   })
 }
