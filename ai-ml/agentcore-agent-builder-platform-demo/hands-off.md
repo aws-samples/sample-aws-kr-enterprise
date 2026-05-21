@@ -92,23 +92,68 @@ agentcore-agent-builder-platform-demo/
 
 | Timestamp | 변경사항 |
 |-----------|----------|
-| 2026-05-19_14:16 | `feat(iac)`: 7개 모듈 Terraform 구조 완성 (`d04e3fb`) — terraform validate 통과 |
+| 2026-05-20_16:49 | `feat(iac)`: CloudFront VPC Origin + Internal ALB (`25f3edb`) |
+| 2026-05-20_13:14 | `feat`: App-level Cognito JWT auth middleware (`46c0c3d`) |
+| 2026-05-19_16:07 | `feat(iac)`: domain_name optional (`d615bc6`) |
+| 2026-05-19_15:13 | `feat`: Agent Observability + Trace Viewer UX (`28a283c`) |
+| 2026-05-19_15:13 | `docs`: architecture, deployment-guide, demo-scenario, LICENSE (`5c1844e`) |
+| 2026-05-19_15:07 | `feat`: control-plane, agent-runtime, tools, scripts, README (`909cb48`) |
+| 2026-05-19_14:16 | `feat(iac)`: 7개 모듈 Terraform 구조 완성 (`d04e3fb`) |
 
-### Commit: `d04e3fb` feat(iac): add modularized Terraform infrastructure (7 modules)
-- 소스 프로젝트 단일 Terraform → 7개 모듈 분할 (network, data, auth, registry, iam, compute, cdn)
-- deprecated `forwarded_values` → `cache_policy_id` 마이그레이션
-- EventBridge endpoint URL 버그 수정
-- Circular dependency 해소 (data↔cdn, iam↔compute)
-- Provider에서 `shared_credentials_files` 제거
+### Commit: `25f3edb` feat(iac): use CloudFront VPC Origin with internal ALB
+- ALB → `internal = true`, private subnet 배치
+- CloudFront VPC Origin으로 ALB 연결 (AWS backbone)
+- cloudfront_secret 완전 제거
+- ALB SG: VPC CIDR only
 
-## 다음 단계
-1. ~~**Terraform MCP 연동 확인** → 모듈 설계 확정~~ ✅ 완료
-2. Design 문서 최종 작성 + 커밋
-3. ~~writing-plans 스킬로 Implementation Plan 생성~~ ✅ `docs/superpowers/plans/2026-05-19-terraform-modularization.md`
-4. ~~실행 (Clean Copy — Terraform IaC 부분)~~ ✅ 완료
-5. 나머지 코드 정제 (control-plane, agent-runtime, tools, scripts)
-6. README.md (이중언어) 작성
-7. deploy-all.sh 작성 (Terraform output → 후속 단계 연결)
+### Commit: `46c0c3d` feat: replace ALB Cognito auth with app-level JWT authentication
+- FastAPI CognitoAuthMiddleware (JWT 검증)
+- /api/auth/* endpoints: signup, verify, login, refresh
+- Email 인증 코드 MFA, PW 복잡성 강제
+- ALB HTTPS listener 제거
+
+### Commit: `d615bc6` feat(iac): make domain_name optional for zero-prereq deployment
+- domain_name = "" → CloudFront 기본 도메인, ACM/Route53 skip
+
+### Commit: `28a283c` feat: add Agent Observability + Trace Viewer UX enhancement
+- AgentSpanProcessor (span_filter.py) — context enrichment
+- SpanDetailPanel — timing, LLM metrics, cost estimation
+- Waterfall + Critical Path + Error cascade
+
+### 인프라 검증 결과 (2026-05-20, ram-test / us-west-2)
+- `terraform apply` ✅ 성공 (67 resources)
+- CloudFront: `d3vbsh4l7fifca.cloudfront.net`
+- Internal ALB + VPC Origin 정상 연결
+- S3 bucket 이름 글로벌 충돌 → account_id suffix 추가로 해결
+- Cache Policy `cookie_behavior = "all"` + TTL=0 조합 불가 → `"none"` 수정
+- SG description non-ASCII 문자 → ASCII only로 수정
+- **Infra destroy 완료** (2026-05-21)
+
+## 다음 단계 (다음 세션)
+
+### E2E 배포 검증 (ram-test / us-west-2)
+1. `terraform apply` — 인프라 재생성
+2. **Docker 이미지 빌드 + ECR push** (platform-api, frontend, base-image, report-image)
+3. **DynamoDB seed** (`scripts/seed-dynamodb.sh`)
+4. **ECS 서비스 재배포** (force-new-deployment → services-stable 대기)
+5. **AgentCore Agent 등록** (`scripts/deploy-agents.sh`)
+6. **MCP Gateway 생성** (`scripts/deploy-gateways.sh`)
+7. **E2E 테스트**:
+   - CloudFront URL 접근 → Frontend 렌더링 확인
+   - /api/auth/signup → 이메일 인증 → /api/auth/login → JWT 발급
+   - /api/agents (Bearer token) → 에이전트 목록 조회
+   - Agent Playground → 실시간 SSE 스트리밍 확인
+   - Trace Viewer → OTEL spans 조회
+   - CloudWatch Alarm → EventBridge → RCA 자동 실행
+
+### 검증 완료 후
+8. 수정 사항 commit (발견된 이슈 해결)
+9. PR 생성 및 push
+
+## 배포 대상
+- **Account**: ram-test (`355720153146`) / Profile: `ram-test`
+- **Region**: `us-west-2`
+- **Config**: `domain_name = ""` (CloudFront default domain)
 
 ## 소스 프로젝트 위치
 - Source: `/Users/ymjoung/workspace/claude-code-project/26y-aiops-platform-v2`

@@ -3,7 +3,7 @@
 ################################################################################
 
 resource "aws_s3_bucket" "reports" {
-  bucket        = "${var.prefix}-reports"
+  bucket        = "${var.prefix}-reports-${var.account_id}"
   force_destroy = true
 
   tags = merge(var.tags, {

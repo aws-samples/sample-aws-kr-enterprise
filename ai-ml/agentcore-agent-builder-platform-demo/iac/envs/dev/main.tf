@@ -65,9 +65,10 @@ module "registry" {
 }
 
 module "data" {
-  source = "../../modules/data"
-  prefix = local.prefix
-  tags   = local.common_tags
+  source     = "../../modules/data"
+  prefix     = local.prefix
+  account_id = data.aws_caller_identity.current.account_id
+  tags       = local.common_tags
 }
 
 module "auth" {

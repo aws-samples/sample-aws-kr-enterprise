@@ -4,20 +4,20 @@
 
 resource "aws_cloudfront_cache_policy" "disabled" {
   name        = "${var.prefix}-cache-disabled"
-  comment     = "No caching — pass through all requests"
+  comment     = "No caching - pass through all requests"
   min_ttl     = 0
   default_ttl = 0
   max_ttl     = 0
 
   parameters_in_cache_key_and_forwarded_to_origin {
     cookies_config {
-      cookie_behavior = "all"
+      cookie_behavior = "none"
     }
     headers_config {
       header_behavior = "none"
     }
     query_strings_config {
-      query_string_behavior = "all"
+      query_string_behavior = "none"
     }
   }
 }

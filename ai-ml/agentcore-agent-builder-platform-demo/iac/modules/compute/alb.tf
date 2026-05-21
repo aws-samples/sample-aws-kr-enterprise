@@ -5,7 +5,7 @@
 resource "aws_security_group" "alb" {
   name_prefix = "${var.prefix}-alb-"
   vpc_id      = var.vpc_id
-  description = "Security group for internal ALB — VPC traffic only"
+  description = "Security group for internal ALB - VPC traffic only"
 
   ingress {
     description = "HTTP from VPC (CloudFront VPC Origin)"
