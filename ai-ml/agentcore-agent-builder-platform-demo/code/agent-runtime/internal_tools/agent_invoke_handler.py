@@ -1,4 +1,8 @@
-"""A2A invoke handler. Spec Section 5.5, 3.5, 4.2."""
+"""Agent-to-Agent delegation handler via AgentCore InvokeAgent API.
+
+NOTE: This is NOT the Google A2A Protocol (https://github.com/google-a2a/A2A).
+It implements agent delegation using AWS Bedrock AgentCore's native InvokeAgent API.
+See docs/a2a-implementation.md for details and comparison."""
 
 import json
 import logging
