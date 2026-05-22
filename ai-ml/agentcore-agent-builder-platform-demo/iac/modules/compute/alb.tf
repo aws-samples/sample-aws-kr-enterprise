@@ -8,11 +8,11 @@ resource "aws_security_group" "alb" {
   description = "Security group for internal ALB - VPC traffic only"
 
   ingress {
-    description = "HTTP from VPC (CloudFront VPC Origin)"
+    description = "HTTP from CloudFront VPC Origin"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
