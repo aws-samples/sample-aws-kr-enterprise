@@ -43,6 +43,16 @@ variable "route53_zone_id" {
   description = "Route53 hosted zone ID"
 }
 
+variable "vpc_id" {
+  type        = string
+  description = "VPC ID for CloudFront VPC Origin managed SG lookup"
+}
+
+variable "alb_security_group_id" {
+  type        = string
+  description = "ALB Security Group ID to attach VPC Origin ingress rule"
+}
+
 variable "tags" {
   type        = map(string)
   description = "Common tags"

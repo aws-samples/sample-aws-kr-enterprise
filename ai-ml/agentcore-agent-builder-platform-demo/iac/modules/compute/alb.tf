@@ -1,22 +1,14 @@
 ################################################################################
-# ALB Security Group
+# ALB Security Group (ingress added by cdn module after VPC Origin creation)
 ################################################################################
 
 resource "aws_security_group" "alb" {
   name_prefix = "${var.prefix}-alb-"
   vpc_id      = var.vpc_id
-  description = "Security group for internal ALB - VPC traffic only"
-
-  ingress {
-    description = "HTTP from CloudFront VPC Origin"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  description = "Security group for internal ALB - CloudFront VPC Origin only"
 
   egress {
-    description = "To ECS tasks"
+    description = "To ECS tasks in VPC"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"

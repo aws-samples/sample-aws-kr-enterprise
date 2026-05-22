@@ -7,10 +7,9 @@ set -euo pipefail
 # Environment Variables (Required)
 ################################################################################
 
-: "${AWS_REGION:?Set AWS_REGION (e.g. ap-northeast-2)}"
+: "${AWS_REGION:?Set AWS_REGION (e.g. us-west-2)}"
 : "${ACCOUNT_ID:?Set ACCOUNT_ID (12-digit AWS account ID)}"
-: "${DOMAIN_NAME:?Set DOMAIN_NAME (Route53 hosted zone domain)}"
-: "${CLOUDFRONT_SECRET:?Set CLOUDFRONT_SECRET (random string for origin validation)}"
+: "${DOMAIN_NAME:=}"
 : "${PROJECT_PREFIX:=aiops-v2-dev}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,7 +20,7 @@ echo " AgentCore Agent Builder Platform — Full Deploy"
 echo "=============================================="
 echo "Region:  $AWS_REGION"
 echo "Account: $ACCOUNT_ID"
-echo "Domain:  $DOMAIN_NAME"
+echo "Domain:  ${DOMAIN_NAME:-<CloudFront default>}"
 echo "Prefix:  $PROJECT_PREFIX"
 echo "=============================================="
 echo ""
@@ -34,12 +33,11 @@ echo "▶ Phase 1: Terraform Infrastructure"
 cd "$PROJECT_ROOT/iac/envs/dev"
 
 cat > terraform.tfvars <<TFVARS
-aws_region        = "$AWS_REGION"
-project           = "$(echo $PROJECT_PREFIX | cut -d'-' -f1-2)"
-env               = "$(echo $PROJECT_PREFIX | rev | cut -d'-' -f1 | rev)"
-vpc_cidr          = "10.1.0.0/16"
-domain_name       = "$DOMAIN_NAME"
-cloudfront_secret = "$CLOUDFRONT_SECRET"
+aws_region  = "$AWS_REGION"
+project     = "$(echo $PROJECT_PREFIX | cut -d'-' -f1-2)"
+env         = "$(echo $PROJECT_PREFIX | rev | cut -d'-' -f1 | rev)"
+vpc_cidr    = "10.1.0.0/16"
+domain_name = "$DOMAIN_NAME"
 TFVARS
 
 terraform init
@@ -133,15 +131,26 @@ echo ""
 # Done
 ################################################################################
 
+CF_DOMAIN=$(cd "$PROJECT_ROOT/iac/envs/dev" && terraform output -raw cloudfront_distribution_id 2>/dev/null || echo "")
+PLATFORM_URL=""
+if [ -n "$DOMAIN_NAME" ]; then
+  PLATFORM_URL="https://aiops-v2.${DOMAIN_NAME}"
+elif [ -n "$CF_DOMAIN" ]; then
+  CF_DOMAIN_NAME=$(aws cloudfront get-distribution --id "$CF_DOMAIN" --query 'Distribution.DomainName' --output text --region us-east-1 2>/dev/null || echo "")
+  PLATFORM_URL="https://${CF_DOMAIN_NAME}"
+fi
+
 echo "=============================================="
-echo " ✅ Deployment Complete!"
+echo " Deployment Complete!"
 echo "=============================================="
 echo ""
-echo " Platform URL: https://aiops-v2.${DOMAIN_NAME}"
-echo " ALB DNS:      ${ALB_DNS}"
+echo " Platform URL: ${PLATFORM_URL}"
+echo " ALB DNS:      ${ALB_DNS} (internal)"
 echo " ECS Cluster:  ${ECS_CLUSTER}"
+echo " Cognito Pool: ${COGNITO_POOL_ID}"
 echo ""
 echo " Next steps:"
-echo "   1. Create a user in Cognito User Pool: ${COGNITO_POOL_ID}"
-echo "   2. Access the platform at https://aiops-v2.${DOMAIN_NAME}"
+echo "   1. POST ${PLATFORM_URL}/api/auth/signup to create a user"
+echo "   2. Verify email with code, then POST /api/auth/login"
+echo "   3. Access the platform at ${PLATFORM_URL}"
 echo "=============================================="

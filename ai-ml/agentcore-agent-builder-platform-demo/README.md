@@ -88,8 +88,7 @@ agentcore-agent-builder-platform-demo/
 - Docker
 - Node.js >= 18
 - AWS CLI v2 configured
-- ACM wildcard certificate in both `ap-northeast-2` and `us-east-1`
-- Route53 hosted zone
+- (Optional) ACM wildcard certificate + Route53 hosted zone for custom domain
 
 ## Quick Start
 
@@ -99,12 +98,10 @@ git clone https://github.com/aws-samples/sample-aws-kr-enterprise.git
 cd ai-ml/agentcore-agent-builder-platform-demo
 
 # 2. Set required environment variables
-export AWS_REGION=ap-northeast-2
+export AWS_REGION=us-west-2
 export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export DOMAIN_NAME=your-domain.com
-export CLOUDFRONT_SECRET=$(openssl rand -hex 16)
 
-# 3. Deploy everything
+# 3. Deploy everything (uses CloudFront default domain — no custom domain needed)
 ./scripts/deploy-all.sh
 ```
 
@@ -112,10 +109,9 @@ export CLOUDFRONT_SECRET=$(openssl rand -hex 16)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `AWS_REGION` | Yes | AWS region (default: ap-northeast-2) |
+| `AWS_REGION` | Yes | AWS region (e.g. us-west-2) |
 | `ACCOUNT_ID` | Yes | 12-digit AWS Account ID |
-| `DOMAIN_NAME` | Yes | Route53 hosted zone domain |
-| `CLOUDFRONT_SECRET` | Yes | Random string for CloudFront→ALB origin validation |
+| `DOMAIN_NAME` | No | Route53 hosted zone domain (empty = CloudFront default domain) |
 | `PROJECT_PREFIX` | No | Resource prefix (default: aiops-v2-dev) |
 
 ## Key Features
@@ -174,12 +170,10 @@ This project is licensed under the MIT-0 License. See the [LICENSE](../../LICENS
 
 ```bash
 # 1. 환경변수 설정
-export AWS_REGION=ap-northeast-2
+export AWS_REGION=us-west-2
 export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export DOMAIN_NAME=your-domain.com
-export CLOUDFRONT_SECRET=$(openssl rand -hex 16)
 
-# 2. 전체 배포 (약 15분)
+# 2. 전체 배포 (약 15분, custom domain 없이 CloudFront 기본 도메인 사용)
 ./scripts/deploy-all.sh
 ```
 

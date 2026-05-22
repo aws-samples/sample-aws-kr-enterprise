@@ -125,6 +125,8 @@ module "cdn" {
   domain_name                    = var.domain_name
   alb_dns                        = module.compute.alb_dns
   alb_arn                        = module.compute.alb_arn
+  vpc_id                         = module.network.vpc_id
+  alb_security_group_id          = module.compute.alb_security_group_id
   reports_bucket_regional_domain = module.data.reports_bucket_regional_domain
   reports_bucket_id              = module.data.reports_bucket_name
   reports_bucket_arn             = module.data.reports_bucket_arn

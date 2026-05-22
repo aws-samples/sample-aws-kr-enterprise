@@ -74,3 +74,4 @@ variable "platform_domain" {
   description = "Platform domain (CloudFront distribution domain when no custom domain)"
   default     = ""
 }
+

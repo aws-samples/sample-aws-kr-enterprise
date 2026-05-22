@@ -65,6 +65,31 @@ resource "aws_cloudfront_vpc_origin" "alb" {
 }
 
 ################################################################################
+# ALB SG Ingress — allow CloudFront VPC Origin managed SG
+################################################################################
+
+data "aws_security_group" "cloudfront_vpc_origin" {
+  vpc_id = var.vpc_id
+
+  filter {
+    name   = "group-name"
+    values = ["CloudFront-VPCOrigins-Service-SG"]
+  }
+
+  depends_on = [aws_cloudfront_vpc_origin.alb]
+}
+
+resource "aws_security_group_rule" "alb_ingress_vpc_origin" {
+  type                     = "ingress"
+  from_port                = 80
+  to_port                  = 80
+  protocol                 = "tcp"
+  security_group_id        = var.alb_security_group_id
+  source_security_group_id = data.aws_security_group.cloudfront_vpc_origin.id
+  description              = "HTTP from CloudFront VPC Origin"
+}
+
+################################################################################
 # CloudFront — Platform Distribution (ALB Origin)
 ################################################################################
 
