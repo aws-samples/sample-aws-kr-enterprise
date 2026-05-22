@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; padding: 24px; max-width: 900px; margin: 0 auto; }
+        .header { border-bottom: 2px solid #6366f1; padding-bottom: 16px; margin-bottom: 24px; }
+        .header h1 { font-size: 24px; color: #fff; }
+        .header .meta { color: #94a3b8; font-size: 13px; margin-top: 8px; }
+        .severity { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+        .severity-critical { background: #ef4444; color: #fff; }
+        .severity-high { background: #f59e0b; color: #000; }
+        .severity-medium { background: #eab308; color: #000; }
+        .severity-low { background: #3b82f6; color: #fff; }
+        .section { margin-bottom: 24px; }
+        .section h2 { font-size: 16px; color: #818cf8; margin-bottom: 12px; border-left: 3px solid #6366f1; padding-left: 12px; }
+        .card { background: #1e1e2e; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+        .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        .metric-card { background: #1e1e2e; border-radius: 8px; padding: 16px; text-align: center; }
+        .metric-value { font-size: 28px; font-weight: 700; color: #fff; }
+        .metric-label { color: #94a3b8; font-size: 12px; margin-top: 4px; }
+        .metric-trend { font-size: 11px; margin-top: 4px; }
+        .trend-up { color: #ef4444; }
+        .trend-normal { color: #10b981; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 8px; color: #94a3b8; border-bottom: 2px solid #334155; font-size: 12px; }
+        td { padding: 8px; border-bottom: 1px solid #1e293b; font-size: 13px; }
+        .root-cause { background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 8px; padding: 16px; }
+        .recommendation { background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; border-radius: 8px; padding: 16px; }
+        .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #334155; color: #64748b; font-size: 11px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ title }}</h1>
+        <div class="meta">
+            Generated: {{ generatedAt }} |
+            <span class="severity severity-{{ severity }}">{{ severity | upper }}</span>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Executive Summary</h2>
+        <div class="card">
+            <p>{{ executiveSummary }}</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Metric Analysis</h2>
+        <div class="metric-grid">
+            {% for name, metric in metrics.items() %}
+            <div class="metric-card">
+                <div class="metric-value">{{ metric.value }}</div>
+                <div class="metric-label">{{ name | upper }}</div>
+                <div class="metric-trend {% if metric.trend != '정상' %}trend-up{% else %}trend-normal{% endif %}">
+                    {{ metric.trend }}
+                    {% if metric.period %}({{ metric.period }}){% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% if incidents %}
+    <div class="section">
+        <h2>Related Incidents</h2>
+        <div class="card">
+            <table>
+                <thead><tr><th>ID</th><th>Title</th><th>Severity</th></tr></thead>
+                <tbody>
+                {% for inc in incidents %}
+                <tr>
+                    <td>{{ inc.id }}</td>
+                    <td>{{ inc.title }}</td>
+                    <td><span class="severity severity-{{ inc.severity }}">{{ inc.severity }}</span></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if changes %}
+    <div class="section">
+        <h2>Infrastructure Changes</h2>
+        <div class="card">
+            <table>
+                <thead><tr><th>Time</th><th>Type</th><th>User</th><th>Detail</th></tr></thead>
+                <tbody>
+                {% for change in changes %}
+                <tr>
+                    <td>{{ change.time }}</td>
+                    <td>{{ change.type }}</td>
+                    <td>{{ change.user }}</td>
+                    <td>{{ change.detail }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="section">
+        <h2>Root Cause</h2>
+        <div class="root-cause">
+            <p>{{ rootCause }}</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Recommendation</h2>
+        <div class="recommendation">
+            <p>{{ recommendation }}</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        AIOps Multi Agent Platform v2 — Automated RCA Report
+    </div>
+</body>
+</html>

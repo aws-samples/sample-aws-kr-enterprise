@@ -33,7 +33,7 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item '{
 
 # --- Supervisor Config ---
 echo "2. Supervisor Config"
-SUPERVISOR_PROMPT=$(cat code/agent/prompts/supervisor.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
+SUPERVISOR_PROMPT=$(cat code/agent-runtime/prompts/supervisor.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
 aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<ITEM
 {
   "PK": {"S": "AGENT#supervisor-001"},
@@ -64,7 +64,7 @@ ITEM
 
 # --- Incident Agent Config ---
 echo "3. Incident Agent Config"
-INCIDENT_PROMPT=$(cat code/agent/prompts/incident.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
+INCIDENT_PROMPT=$(cat code/agent-runtime/prompts/incident.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
 aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<ITEM
 {
   "PK": {"S": "AGENT#incident-agent-001"},
@@ -99,7 +99,7 @@ ITEM
 
 # --- Observability Agent Config ---
 echo "4. Observability Agent Config"
-OBS_PROMPT=$(cat code/agent/prompts/observability.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
+OBS_PROMPT=$(cat code/agent-runtime/prompts/observability.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
 aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<ITEM
 {
   "PK": {"S": "AGENT#observability-agent-001"},
@@ -130,7 +130,7 @@ ITEM
 
 # --- RCA Agent Config ---
 echo "5. RCA Agent Config"
-RCA_PROMPT=$(cat code/agent/prompts/rca.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
+RCA_PROMPT=$(cat code/agent-runtime/prompts/rca.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
 aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<ITEM
 {
   "PK": {"S": "AGENT#rca-agent-001"},
@@ -164,7 +164,7 @@ ITEM
 
 # --- Report Agent Config ---
 echo "6. Report Agent Config"
-REPORT_PROMPT=$(cat code/agent/prompts/report.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
+REPORT_PROMPT=$(cat code/agent-runtime/prompts/report.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
 aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<ITEM
 {
   "PK": {"S": "AGENT#report-agent-001"},
@@ -197,7 +197,7 @@ ITEM
 
 # --- Data Agent Config ---
 echo "7. Data Agent Config"
-DATA_PROMPT=$(cat code/agent/prompts/data.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
+DATA_PROMPT=$(cat code/agent-runtime/prompts/data.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
 aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<ITEM
 {
   "PK": {"S": "AGENT#data-agent-001"},
@@ -227,7 +227,7 @@ ITEM
 
 # --- Cost Agent Config ---
 echo "8. Cost Agent Config"
-COST_PROMPT=$(cat code/agent/prompts/cost.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
+COST_PROMPT=$(cat code/agent-runtime/prompts/cost.md | python3 -c "import sys,json; print(json.dumps(sys.stdin.read())[1:-1])")
 aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<ITEM
 {
   "PK": {"S": "AGENT#cost-agent-001"},
