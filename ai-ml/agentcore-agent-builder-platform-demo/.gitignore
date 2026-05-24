@@ -45,3 +45,8 @@ parking_lot/
 *.mov
 *.mp4
 hands-off.md
+
+# Internal authoring artifacts (not for public)
+.claude/
+.playwright-mcp/
+docs/superpowers/
