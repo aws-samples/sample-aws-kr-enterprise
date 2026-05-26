@@ -57,33 +57,15 @@ echo "✓ Phase 1 complete — Infrastructure provisioned"
 echo ""
 
 ################################################################################
-# Phase 2: Container Images (Build + Push to ECR)
+# Phase 2: Container Images (Build via CodeBuild)
 ################################################################################
 
-echo "▶ Phase 2: Build & Push Container Images"
-ECR_BASE="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_BASE"
-
-# Platform API
-echo "  Building platform-api..."
-docker build -t "${ECR_BASE}/${PROJECT_PREFIX}/platform-api:latest" "$PROJECT_ROOT/code/control-plane/api"
-docker push "${ECR_BASE}/${PROJECT_PREFIX}/platform-api:latest"
-
-# Frontend
-echo "  Building frontend..."
-docker build -t "${ECR_BASE}/${PROJECT_PREFIX}/frontend:latest" "$PROJECT_ROOT/code/control-plane/ui"
-docker push "${ECR_BASE}/${PROJECT_PREFIX}/frontend:latest"
-
-# Agent Base Image
-echo "  Building base-image..."
-docker build -t "${ECR_BASE}/${PROJECT_PREFIX}/base-image:latest" "$PROJECT_ROOT/code/agent-runtime"
-docker push "${ECR_BASE}/${PROJECT_PREFIX}/base-image:latest"
-
-# Report Image
-echo "  Building report-image..."
-docker build -f "$PROJECT_ROOT/code/agent-runtime/Dockerfile.report" -t "${ECR_BASE}/${PROJECT_PREFIX}/report-image:latest" "$PROJECT_ROOT/code/agent-runtime"
-docker push "${ECR_BASE}/${PROJECT_PREFIX}/report-image:latest"
-
+echo "▶ Phase 2: Build Container Images (CodeBuild)"
+export CB_PROJECT_X86=$(cd "$PROJECT_ROOT/iac/envs/dev" && terraform output -raw codebuild_project_x86)
+export CB_PROJECT_ARM64=$(cd "$PROJECT_ROOT/iac/envs/dev" && terraform output -raw codebuild_project_arm64)
+export CB_SOURCE_BUCKET=$(cd "$PROJECT_ROOT/iac/envs/dev" && terraform output -raw codebuild_source_bucket)
+cd "$SCRIPT_DIR"
+bash build-images.sh
 echo "✓ Phase 2 complete — All images pushed to ECR"
 echo ""
 
