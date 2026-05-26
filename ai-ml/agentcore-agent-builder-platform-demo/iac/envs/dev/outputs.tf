@@ -33,3 +33,15 @@ output "cognito_user_pool_id" {
 output "cloudfront_distribution_id" {
   value = module.cdn.platform_distribution_id
 }
+
+output "codebuild_project_arm64" {
+  value = module.build.codebuild_project_arm64
+}
+
+output "codebuild_project_x86" {
+  value = module.build.codebuild_project_x86
+}
+
+output "codebuild_source_bucket" {
+  value = module.build.source_bucket
+}

@@ -134,3 +134,12 @@ module "cdn" {
   route53_zone_id                = local.use_custom_domain ? data.aws_route53_zone.main[0].zone_id : ""
   tags                           = local.common_tags
 }
+
+module "build" {
+  source        = "../../modules/build"
+  prefix        = local.prefix
+  aws_region    = var.aws_region
+  account_id    = data.aws_caller_identity.current.account_id
+  ecr_repo_arns = module.registry.repo_arns
+  tags          = local.common_tags
+}
