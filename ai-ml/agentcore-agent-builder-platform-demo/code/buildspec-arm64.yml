@@ -1,0 +1,20 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+  build:
+    commands:
+      - echo Building base-image...
+      - docker build -t $IMAGE_PREFIX/base-image:latest code/agent-runtime
+      - echo Building report-image...
+      - docker build -f code/agent-runtime/Dockerfile.report --build-arg BASE_IMAGE=$IMAGE_PREFIX/base-image:latest -t $IMAGE_PREFIX/report-image:latest code/agent-runtime
+  post_build:
+    commands:
+      - echo Pushing base-image...
+      - docker push $IMAGE_PREFIX/base-image:latest
+      - echo Pushing report-image...
+      - docker push $IMAGE_PREFIX/report-image:latest
+      - echo Build completed on $(date)
