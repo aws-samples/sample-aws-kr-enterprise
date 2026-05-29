@@ -38,6 +38,34 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ./scripts/deploy-all.sh
 ```
 
+> `deploy-all.sh`가 완료되면 웹 UI에서 Agent 정의 → Deploy → Playground 테스트까지 가능합니다.
+
+## 배포 단계 (deploy-all.sh)
+
+| Phase | 내용 | 소요 시간 |
+|-------|------|-----------|
+| 1 | **Terraform Apply** — VPC, ECR, DynamoDB, ECS, CloudFront, CodeBuild 등 ~70 리소스 생성 | ~5분 |
+| 2 | **Container Image Build** — CodeBuild로 4개 이미지 빌드 후 ECR push | ~5분 |
+| 3 | **Seed Data** — DynamoDB에 에이전트 메타데이터, 게이트웨이 설정 시드 | ~10초 |
+| 4 | **ECS Redeployment** — 새 이미지로 platform-api, frontend 서비스 재시작 | ~3분 |
+| 5 | **AgentCore Agents** — AgentCore Runtime 등록 (선택, Preview API) | ~2분 |
+| 6 | **MCP Gateways** — Lambda 기반 MCP Gateway 연결 (선택) | ~1분 |
+
+### Agent Deploy 동작 원리
+
+```
+[Phase 2: CodeBuild] → ECR에 base-image push
+                              ↓
+[Phase 4: ECS 재배포] → platform-api에 BASE_IMAGE_URI 환경변수 주입
+                              ↓
+[웹 UI: Deploy Agent 클릭] → API가 BASE_IMAGE_URI로 AgentCore Runtime 생성
+                              ↓
+[AgentCore] → ECR에서 이미지 pull → Runtime READY → Playground 사용 가능
+```
+
+> **중요:** Phase 2(이미지 빌드)가 완료되어야 웹 UI의 "Deploy Agent" 기능이 정상 동작합니다.
+> ECR에 이미지가 없으면 AgentCore가 이미지를 pull할 수 없어 배포에 실패합니다.
+
 ## 사전 준비물
 
 - Bedrock AgentCore 사용 가능한 AWS 계정
@@ -233,6 +261,34 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 # 3. Deploy everything (uses CloudFront default domain — no custom domain needed)
 ./scripts/deploy-all.sh
 ```
+
+> Once `deploy-all.sh` completes, you can define agents, deploy them, and test via the Playground — all from the web UI.
+
+## Deployment Phases (deploy-all.sh)
+
+| Phase | Description | Duration |
+|-------|-------------|----------|
+| 1 | **Terraform Apply** — Provisions ~70 resources (VPC, ECR, DynamoDB, ECS, CloudFront, CodeBuild) | ~5 min |
+| 2 | **Container Image Build** — Builds 4 images via CodeBuild, pushes to ECR | ~5 min |
+| 3 | **Seed Data** — Populates DynamoDB with agent metadata and gateway configs | ~10 sec |
+| 4 | **ECS Redeployment** — Restarts platform-api and frontend with new images | ~3 min |
+| 5 | **AgentCore Agents** — Registers agent runtimes (optional, Preview API) | ~2 min |
+| 6 | **MCP Gateways** — Configures Lambda-backed MCP Gateways (optional) | ~1 min |
+
+### How Agent Deploy Works
+
+```
+[Phase 2: CodeBuild] → Pushes base-image to ECR
+                              ↓
+[Phase 4: ECS Redeploy] → Injects BASE_IMAGE_URI env var into platform-api
+                              ↓
+[Web UI: Deploy Agent] → API calls AgentCore with BASE_IMAGE_URI
+                              ↓
+[AgentCore] → Pulls image from ECR → Runtime READY → Playground available
+```
+
+> **Important:** Phase 2 (image build) must complete for the web UI's "Deploy Agent" to work.
+> If ECR is empty, AgentCore cannot pull the image and deployment fails.
 
 ## Environment Variables
 
