@@ -10,6 +10,17 @@
 
 이 샘플은 운영 클라우드 환경에서 AI 에이전트를 **개발하지 않고 조립**해서 사용할 수 있는 플랫폼을 어떻게 구성하는지 보여줍니다. 한 명의 엔지니어가 자기 도구를 만드는 단계를 넘어, **10명 이상의 클라우드 운영 조직**이 에이전트를 자산으로 공유·운영하기 시작할 때 필요한 구조입니다.
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/demo-01-dashboard.png" alt="Dashboard"/><br/><sub><b>Dashboard</b> — Agent / Runtime / Gateway / MCP Tool 자산을 한 화면에서 관리</sub></td>
+    <td width="50%"><img src="docs/images/demo-02-builder.png" alt="Agent Builder"/><br/><sub><b>Agent Builder</b> — 요구사항을 입력하면 Context Boundary, Gateway, Delegation까지 단계별로 조립</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/demo-03-agents.png" alt="Agent Registry"/><br/><sub><b>Agent Registry</b> — 조직 단위로 등록된 Agent를 카드로 확인하고 Playground/Design으로 진입</sub></td>
+    <td width="50%"><img src="docs/images/demo-04-traces.png" alt="Trace Viewer"/><br/><sub><b>Trace Viewer</b> — Supervisor → Domain Agent → MCP Tool 호출까지 OTEL/X-Ray 스팬 워터폴로 추적</sub></td>
+  </tr>
+</table>
+
 **주요 기능**
 
 - **AI 에이전트 생성/관리** — 웹 UI에서 에이전트 워크플로우를 시각적으로 설계하고 카드(Card) 단위로 등록
@@ -192,7 +203,20 @@ terraform destroy -auto-approve
 
 ## Overview
 
-This sample demonstrates how to build a full-stack agent management platform that:
+This sample demonstrates how to build a full-stack agent management platform that lets a 10+ engineer cloud-ops organization **assemble** agents instead of writing each one from scratch.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/demo-01-dashboard.png" alt="Dashboard"/><br/><sub><b>Dashboard</b> — Manage Agent / Runtime / Gateway / MCP Tool inventory at a glance</sub></td>
+    <td width="50%"><img src="docs/images/demo-02-builder.png" alt="Agent Builder"/><br/><sub><b>Agent Builder</b> — Assemble Context Boundary, Gateway, and Delegation step by step from requirements</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/demo-03-agents.png" alt="Agent Registry"/><br/><sub><b>Agent Registry</b> — Browse organization-wide agents as cards; enter Playground/Design</sub></td>
+    <td width="50%"><img src="docs/images/demo-04-traces.png" alt="Trace Viewer"/><br/><sub><b>Trace Viewer</b> — Trace Supervisor → Domain Agent → MCP Tool calls as an OTEL/X-Ray span waterfall</sub></td>
+  </tr>
+</table>
+
+**Key Features**
 
 - **Creates & manages AI agents** through a web-based UI with visual workflow design
 - **Connects agents to tools** via MCP (Model Context Protocol) Gateways backed by Lambda functions
