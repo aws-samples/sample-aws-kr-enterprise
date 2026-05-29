@@ -86,6 +86,12 @@ resource "aws_iam_role_policy" "platform_api_task" {
         Resource = aws_iam_role.agentcore_runtime.arn
       },
       {
+        Sid    = "CreateServiceLinkedRole"
+        Effect = "Allow"
+        Action = "iam:CreateServiceLinkedRole"
+        Resource = "arn:aws:iam::${var.account_id}:role/aws-service-role/*bedrock*/*"
+      },
+      {
         Sid    = "XRayReadOnly"
         Effect = "Allow"
         Action = [

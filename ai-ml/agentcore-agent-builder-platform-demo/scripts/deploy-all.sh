@@ -56,6 +56,12 @@ export ECR_REPOS=$(terraform output -json ecr_repos)
 echo "✓ Phase 1 complete — Infrastructure provisioned"
 echo ""
 
+# Pre-create AgentCore Service Linked Role (required for first-time deployment)
+echo "▶ Pre-check: AgentCore Service Linked Role"
+aws iam create-service-linked-role --aws-service-name bedrock-agentcore.amazonaws.com --region "$AWS_REGION" 2>/dev/null \
+  && echo "  Created AgentCore SLR" \
+  || echo "  SLR already exists (OK)"
+
 ################################################################################
 # Phase 2: Container Images (Build via CodeBuild)
 ################################################################################
