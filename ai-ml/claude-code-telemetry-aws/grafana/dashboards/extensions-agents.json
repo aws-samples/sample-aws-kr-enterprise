@@ -1,0 +1,146 @@
+{
+  "uid": "claude-code-extensions",
+  "title": "Claude Code - Extensions & Agents",
+  "description": "Subagent & effort cost attribution (AMP), MCP server/tool analytics and Plugin/Skill adoption (Athena). AMP panels reflect all history; Athena panels populate from the 2.x schema deploy onward.",
+  "tags": ["claude-code", "extensions", "agents", "mcp", "plugins"],
+  "timezone": "utc",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {"from": "now-7d", "to": "now"},
+  "links": [
+    {"title": "Overview", "url": "/d/claude-code-overview", "type": "link", "icon": "home"},
+    {"title": "Real-Time Metrics", "url": "/d/claude-code-realtime", "type": "link", "icon": "lightning"},
+    {"title": "Cost Analysis", "url": "/d/claude-code-cost", "type": "link", "icon": "database"},
+    {"title": "Usage Insights", "url": "/d/claude-code-usage", "type": "link", "icon": "database"},
+    {"title": "Tool Analytics", "url": "/d/claude-code-tools", "type": "link", "icon": "database"},
+    {"title": "API Performance", "url": "/d/claude-code-api", "type": "link", "icon": "database"}
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "model", "label": "Model", "type": "query",
+        "datasource": {"type": "prometheus", "uid": "amp"},
+        "query": "label_values(claude_code_cost_usage_USD_total, model)",
+        "includeAll": true, "allValue": ".*", "current": {"text": "All", "value": "$__all"}, "refresh": 2, "sort": 1
+      },
+      {
+        "name": "user", "label": "User (Athena)", "type": "query",
+        "datasource": {"type": "grafana-athena-datasource", "uid": "athena"},
+        "query": "SELECT DISTINCT COALESCE(user_name, user_id) AS user_display FROM claude_code_telemetry.events WHERE user_id IS NOT NULL AND \"timestamp\" BETWEEN from_iso8601_timestamp('${__from:date:iso}') AND from_iso8601_timestamp('${__to:date:iso}') ORDER BY user_display",
+        "includeAll": true, "allValue": "%", "current": {"text": "All", "value": "$__all"}, "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {"id": 100, "type": "row", "title": "Subagent & Effort (Prometheus)", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "collapsed": false, "panels": []},
+    {
+      "id": 1, "type": "barchart", "title": "Cost by Subagent",
+      "description": "Cumulative cost attributed to each subagent (agent_name label). Empty label = main thread.",
+      "datasource": {"type": "prometheus", "uid": "amp"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 1},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "amp"}, "expr": "sum by (agent_name) (increase(claude_code_cost_usage_USD_total{model=~\"$model\"}[$__range]))", "legendFormat": "{{agent_name}}", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "color": {"mode": "palette-classic"}}},
+      "options": {"orientation": "horizontal", "showValue": "always", "barWidth": 0.7, "legend": {"showLegend": false}}
+    },
+    {
+      "id": 2, "type": "piechart", "title": "Cost by Effort Mode",
+      "description": "Cost split across effort modes (e.g. high, xhigh).",
+      "datasource": {"type": "prometheus", "uid": "amp"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 1},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "amp"}, "expr": "sum by (effort) (increase(claude_code_cost_usage_USD_total{model=~\"$model\"}[$__range]))", "legendFormat": "{{effort}}", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "color": {"mode": "palette-classic"}}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "legend": {"displayMode": "table", "placement": "right", "values": ["value", "percent"]}, "pieType": "donut"}
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Token Rate by Effort Mode",
+      "description": "Token consumption rate per effort mode.",
+      "datasource": {"type": "prometheus", "uid": "amp"},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 9},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "amp"}, "expr": "sum by (effort) (rate(claude_code_token_usage_tokens_total{model=~\"$model\"}[5m]) * 60)", "legendFormat": "{{effort}}"}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "palette-classic"}, "custom": {"fillOpacity": 10, "lineWidth": 2, "gradientMode": "opacity", "axisLabel": "tokens/min", "showPoints": "never", "spanNulls": true}}},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 4, "type": "table", "title": "Subagent Activity Detail (Athena)",
+      "description": "Per-subagent API call count, cost, and avg latency. Populates from 2.x deploy onward.",
+      "datasource": {"type": "grafana-athena-datasource", "uid": "athena"},
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 17},
+      "targets": [{"format": 1, "connectionArgs": {"region": "__default", "catalog": "__default", "database": "__default", "resultReuseEnabled": false, "resultReuseMaxAgeInMinutes": 60}, "refId": "A", "datasource": {"type": "grafana-athena-datasource", "uid": "athena"}, "rawSQL": "SELECT COALESCE(agent_name, '(main thread)') AS agent, COUNT(*) AS api_calls, ROUND(SUM(cost_usd), 4) AS total_cost, ROUND(AVG(duration_ms), 0) AS avg_latency_ms, COALESCE(effort, '-') AS effort FROM claude_code_telemetry.events WHERE event_name = 'claude_code.api_request' AND \"timestamp\" BETWEEN from_iso8601_timestamp('${__from:date:iso}') AND from_iso8601_timestamp('${__to:date:iso}') AND (COALESCE(user_name, user_id) LIKE '${user}' OR '${user}' = '%') GROUP BY agent_name, effort ORDER BY total_cost DESC"}],
+      "fieldConfig": {"defaults": {}, "overrides": [
+        {"matcher": {"id": "byName", "options": "total_cost"}, "properties": [{"id": "unit", "value": "currencyUSD"}, {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}}, {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "transparent", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 10}]}}]},
+        {"matcher": {"id": "byName", "options": "avg_latency_ms"}, "properties": [{"id": "unit", "value": "ms"}]}
+      ]},
+      "options": {"showHeader": true, "footer": {"enablePagination": true}, "filterable": true, "sortBy": [{"displayName": "total_cost", "desc": true}]}
+    },
+    {
+      "id": 5, "type": "table", "title": "Subagent Completion Summary (Athena)",
+      "description": "Per subagent_type: runs, avg duration, avg tokens, avg tool uses. From the subagent_completed event; populates from 2.x deploy onward.",
+      "datasource": {"type": "grafana-athena-datasource", "uid": "athena"},
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 26},
+      "targets": [{"format": 1, "connectionArgs": {"region": "__default", "catalog": "__default", "database": "__default", "resultReuseEnabled": false, "resultReuseMaxAgeInMinutes": 60}, "refId": "A", "datasource": {"type": "grafana-athena-datasource", "uid": "athena"}, "rawSQL": "SELECT COALESCE(agent_type, '(unknown)') AS agent_type, MAX(agent_source) AS source, COUNT(*) AS runs, ROUND(AVG(duration_ms), 0) AS avg_duration_ms, CAST(ROUND(AVG(total_tokens), 0) AS BIGINT) AS avg_tokens, ROUND(AVG(total_tool_uses), 1) AS avg_tool_uses FROM claude_code_telemetry.events WHERE event_name = 'claude_code.subagent_completed' AND \"timestamp\" BETWEEN from_iso8601_timestamp('${__from:date:iso}') AND from_iso8601_timestamp('${__to:date:iso}') AND (COALESCE(user_name, user_id) LIKE '${user}' OR '${user}' = '%') GROUP BY agent_type ORDER BY runs DESC"}],
+      "fieldConfig": {"defaults": {}, "overrides": [
+        {"matcher": {"id": "byName", "options": "avg_duration_ms"}, "properties": [{"id": "unit", "value": "ms"}]},
+        {"matcher": {"id": "byName", "options": "avg_tokens"}, "properties": [{"id": "unit", "value": "short"}, {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}}, {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "transparent", "value": null}, {"color": "yellow", "value": 20000}, {"color": "red", "value": 100000}]}}]}
+      ]},
+      "options": {"showHeader": true, "footer": {"enablePagination": true}, "filterable": true, "sortBy": [{"displayName": "runs", "desc": true}]}
+    },
+    {"id": 101, "type": "row", "title": "MCP (Athena)", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 35}, "collapsed": false, "panels": []},
+    {
+      "id": 10, "type": "gauge", "title": "MCP Connection Success Rate",
+      "description": "Share of mcp_server_connection events with status='connected'.",
+      "datasource": {"type": "grafana-athena-datasource", "uid": "athena"},
+      "gridPos": {"h": 8, "w": 6, "x": 0, "y": 27},
+      "targets": [{"format": 1, "connectionArgs": {"region": "__default", "catalog": "__default", "database": "__default", "resultReuseEnabled": false, "resultReuseMaxAgeInMinutes": 60}, "refId": "A", "datasource": {"type": "grafana-athena-datasource", "uid": "athena"}, "rawSQL": "SELECT ROUND(SUM(CASE WHEN mcp_status = 'connected' THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 1) AS success_pct FROM claude_code_telemetry.events WHERE event_name = 'claude_code.mcp_server_connection' AND \"timestamp\" BETWEEN from_iso8601_timestamp('${__from:date:iso}') AND from_iso8601_timestamp('${__to:date:iso}')"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 80}, {"color": "green", "value": 95}]}}},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "showThresholdMarkers": true}
+    },
+    {
+      "id": 11, "type": "table", "title": "MCP Server Connections",
+      "description": "Per MCP server: connection attempts, success, avg connect time, transport.",
+      "datasource": {"type": "grafana-athena-datasource", "uid": "athena"},
+      "gridPos": {"h": 8, "w": 18, "x": 6, "y": 27},
+      "targets": [{"format": 1, "connectionArgs": {"region": "__default", "catalog": "__default", "database": "__default", "resultReuseEnabled": false, "resultReuseMaxAgeInMinutes": 60}, "refId": "A", "datasource": {"type": "grafana-athena-datasource", "uid": "athena"}, "rawSQL": "SELECT COALESCE(plugin_name, '(standalone)') AS server, COUNT(*) AS attempts, SUM(CASE WHEN mcp_status='connected' THEN 1 ELSE 0 END) AS connected, ROUND(AVG(duration_ms), 0) AS avg_connect_ms, MAX(transport_type) AS transport, MAX(server_scope) AS scope FROM claude_code_telemetry.events WHERE event_name = 'claude_code.mcp_server_connection' AND \"timestamp\" BETWEEN from_iso8601_timestamp('${__from:date:iso}') AND from_iso8601_timestamp('${__to:date:iso}') GROUP BY plugin_name ORDER BY attempts DESC"}],
+      "fieldConfig": {"defaults": {}, "overrides": [{"matcher": {"id": "byName", "options": "avg_connect_ms"}, "properties": [{"id": "unit", "value": "ms"}]}]},
+      "options": {"showHeader": true, "filterable": true, "sortBy": [{"displayName": "attempts", "desc": true}]}
+    },
+    {
+      "id": 12, "type": "barchart", "title": "MCP Tool Usage (cost)",
+      "description": "Cost attributed to MCP tools via the mcp_tool_name label.",
+      "datasource": {"type": "prometheus", "uid": "amp"},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 35},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "amp"}, "expr": "sum by (mcp_tool_name) (increase(claude_code_cost_usage_USD_total{mcp_tool_name!=\"\", model=~\"$model\"}[$__range]))", "legendFormat": "{{mcp_tool_name}}", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "color": {"mode": "continuous-BlPu"}}},
+      "options": {"orientation": "horizontal", "showValue": "always", "barWidth": 0.7, "legend": {"showLegend": false}}
+    },
+    {"id": 102, "type": "row", "title": "Plugins & Skills", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 43}, "collapsed": false, "panels": []},
+    {
+      "id": 20, "type": "barchart", "title": "Skill Activation Frequency",
+      "description": "How often each skill is activated (skill_name label). Empty = main thread, excluded.",
+      "datasource": {"type": "prometheus", "uid": "amp"},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 44},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "amp"}, "expr": "sum by (skill_name) (increase(claude_code_token_usage_tokens_total{skill_name!=\"\", model=~\"$model\"}[$__range]))", "legendFormat": "{{skill_name}}", "instant": true}],
+      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "continuous-GrYlRd"}}},
+      "options": {"orientation": "horizontal", "showValue": "always", "barWidth": 0.7, "legend": {"showLegend": false}}
+    },
+    {
+      "id": 21, "type": "barchart", "title": "Plugins Loaded by Marketplace",
+      "description": "Distinct plugins loaded, grouped by marketplace. Populates from 2.x deploy onward.",
+      "datasource": {"type": "grafana-athena-datasource", "uid": "athena"},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 44},
+      "targets": [{"format": 1, "connectionArgs": {"region": "__default", "catalog": "__default", "database": "__default", "resultReuseEnabled": false, "resultReuseMaxAgeInMinutes": 60}, "refId": "A", "datasource": {"type": "grafana-athena-datasource", "uid": "athena"}, "rawSQL": "SELECT COALESCE(marketplace_name, '(local)') AS marketplace, COUNT(DISTINCT plugin_name) AS plugins FROM claude_code_telemetry.events WHERE event_name = 'claude_code.plugin_loaded' AND \"timestamp\" BETWEEN from_iso8601_timestamp('${__from:date:iso}') AND from_iso8601_timestamp('${__to:date:iso}') GROUP BY marketplace_name ORDER BY plugins DESC"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "#5470C6"}}},
+      "options": {"orientation": "horizontal", "showValue": "always", "barWidth": 0.7}
+    },
+    {
+      "id": 22, "type": "table", "title": "Plugin Capability Matrix",
+      "description": "Per plugin: scope, version, whether it provides MCP/hooks. Populates from 2.x deploy onward.",
+      "datasource": {"type": "grafana-athena-datasource", "uid": "athena"},
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 53},
+      "targets": [{"format": 1, "connectionArgs": {"region": "__default", "catalog": "__default", "database": "__default", "resultReuseEnabled": false, "resultReuseMaxAgeInMinutes": 60}, "refId": "A", "datasource": {"type": "grafana-athena-datasource", "uid": "athena"}, "rawSQL": "SELECT plugin_name, MAX(plugin_scope) AS scope, MAX(plugin_version) AS version, MAX(marketplace_name) AS marketplace, BOOL_OR(has_mcp) AS has_mcp, BOOL_OR(has_hooks) AS has_hooks, COUNT(DISTINCT session_id) AS sessions FROM claude_code_telemetry.events WHERE event_name = 'claude_code.plugin_loaded' AND \"timestamp\" BETWEEN from_iso8601_timestamp('${__from:date:iso}') AND from_iso8601_timestamp('${__to:date:iso}') GROUP BY plugin_name ORDER BY sessions DESC"}],
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "options": {"showHeader": true, "footer": {"enablePagination": true}, "filterable": true, "sortBy": [{"displayName": "sessions", "desc": true}]}
+    }
+  ]
+}

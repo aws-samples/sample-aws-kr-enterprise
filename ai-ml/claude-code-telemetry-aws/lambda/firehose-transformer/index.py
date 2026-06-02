@@ -198,7 +198,7 @@ def parse_otlp_log(message: str, cw_timestamp: int | None = None) -> dict | None
     flat['success'] = _get_bool(all_attrs, 'success')
     flat['duration_ms'] = _get_float(all_attrs, 'duration_ms', 'duration.ms')
     flat['error'] = _get_str(all_attrs, 'error', 'error.message')
-    flat['decision'] = _get_str(all_attrs, 'decision')
+    flat['decision'] = _get_str(all_attrs, 'decision', 'decision_type')
     flat['source'] = _get_str(all_attrs, 'source', 'decision_source')
     flat['tool_parameters'] = _get_str(all_attrs, 'tool_parameters', 'tool.parameters')
     flat['tool_result_size_bytes'] = _get_int(all_attrs, 'tool_result_size_bytes')
@@ -211,6 +211,65 @@ def parse_otlp_log(message: str, cw_timestamp: int | None = None) -> dict | None
     flat['cache_creation_tokens'] = _get_int(all_attrs, 'cache_creation_tokens', 'cache.creation.tokens')
     flat['status_code'] = _get_int(all_attrs, 'status_code', 'http.status_code')
     flat['attempt'] = _get_int(all_attrs, 'attempt')
+
+    # --- Claude Code 2.x extended attributes (verified against live OTLP 2026-06) ---
+    # Common
+    flat['event_sequence'] = _get_int(all_attrs, 'event.sequence', 'event_sequence')
+
+    # api_request / api_error: subagent, effort, MCP attribution
+    flat['agent_name'] = _get_str(all_attrs, 'agent.name', 'agent_name')
+    flat['effort'] = _get_str(all_attrs, 'effort')
+    flat['query_source'] = _get_str(all_attrs, 'query_source')
+    flat['mcp_server_name'] = _get_str(all_attrs, 'mcp_server.name', 'mcp_server_name')
+    flat['mcp_tool_name'] = _get_str(all_attrs, 'mcp_tool.name', 'mcp_tool_name')
+    flat['cost_usd_micros'] = _get_int(all_attrs, 'cost_usd_micros')
+    flat['request_id'] = _get_str(all_attrs, 'request_id')
+
+    # tool_result extended
+    flat['error_type'] = _get_str(all_attrs, 'error_type')
+    flat['tool_input_size_bytes'] = _get_int(all_attrs, 'tool_input_size_bytes')
+    flat['tool_use_id'] = _get_str(all_attrs, 'tool_use_id')
+    flat['mcp_server_scope'] = _get_str(all_attrs, 'mcp_server_scope')
+
+    # user_prompt extended
+    flat['command_name'] = _get_str(all_attrs, 'command_name')
+    flat['command_source'] = _get_str(all_attrs, 'command_source')
+
+    # hook_* events
+    flat['hook_name'] = _get_str(all_attrs, 'hook_name')
+    flat['hook_event'] = _get_str(all_attrs, 'hook_event')
+    flat['hook_source'] = _get_str(all_attrs, 'hook_source')
+    flat['hook_type'] = _get_str(all_attrs, 'hook_type')
+    flat['total_duration_ms'] = _get_float(all_attrs, 'total_duration_ms')
+    flat['num_hooks'] = _get_int(all_attrs, 'num_hooks')
+    flat['num_success'] = _get_int(all_attrs, 'num_success')
+    flat['num_blocking'] = _get_int(all_attrs, 'num_blocking')
+    flat['num_cancelled'] = _get_int(all_attrs, 'num_cancelled')
+    flat['num_non_blocking_error'] = _get_int(all_attrs, 'num_non_blocking_error')
+
+    # plugin_loaded / skill_activated / mcp_server_connection
+    flat['plugin_name'] = _get_str(all_attrs, 'plugin.name', 'plugin_name')
+    flat['plugin_scope'] = _get_str(all_attrs, 'plugin.scope', 'plugin_scope')
+    flat['plugin_version'] = _get_str(all_attrs, 'plugin.version', 'plugin_version')
+    flat['marketplace_name'] = _get_str(all_attrs, 'marketplace.name', 'marketplace_name')
+    flat['enabled_via'] = _get_str(all_attrs, 'enabled_via')
+    flat['has_mcp'] = _get_bool(all_attrs, 'has_mcp')
+    flat['has_hooks'] = _get_bool(all_attrs, 'has_hooks')
+    flat['skill_name'] = _get_str(all_attrs, 'skill.name', 'skill_name')
+    flat['skill_source'] = _get_str(all_attrs, 'skill.source', 'skill_source')
+    flat['invocation_trigger'] = _get_str(all_attrs, 'invocation_trigger')
+    flat['transport_type'] = _get_str(all_attrs, 'transport_type')
+    flat['mcp_status'] = _get_str(all_attrs, 'status')
+    flat['server_scope'] = _get_str(all_attrs, 'server_scope')
+    flat['is_plugin'] = _get_bool(all_attrs, 'is_plugin')
+
+    # subagent_completed: per-subagent token/tool/duration attribution
+    flat['agent_type'] = _get_str(all_attrs, 'agent_type', 'agent.type')
+    flat['agent_source'] = _get_str(all_attrs, 'agent.source', 'agent_source')
+    flat['is_built_in'] = _get_bool(all_attrs, 'is_built_in')
+    flat['is_async'] = _get_bool(all_attrs, 'is_async')
+    flat['total_tokens'] = _get_int(all_attrs, 'total_tokens')
+    flat['total_tool_uses'] = _get_int(all_attrs, 'total_tool_uses')
 
     # Only return records that have at minimum an event_name
     if not flat.get('event_name'):

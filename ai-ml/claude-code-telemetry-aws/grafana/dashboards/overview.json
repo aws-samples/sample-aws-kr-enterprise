@@ -11,6 +11,7 @@
   "version": 1,
   "time": {"from": "now-24h", "to": "now"},
   "links": [
+    {"title": "Extensions & Agents", "url": "/d/claude-code-extensions", "type": "link", "icon": "apps", "tooltip": "Subagent/effort cost, MCP, plugins, skills"},
     {"title": "Real-Time Metrics", "url": "/d/claude-code-realtime", "type": "link", "icon": "lightning", "tooltip": "All 8 Prometheus metrics in detail"},
     {"title": "Cost Analysis", "url": "/d/claude-code-cost", "type": "link", "icon": "database", "tooltip": "Per-request cost, model efficiency"},
     {"title": "Usage Insights", "url": "/d/claude-code-usage", "type": "link", "icon": "database", "tooltip": "Session drill-down, prompt analytics"},
@@ -76,12 +77,21 @@
     },
     {
       "id": 20, "type": "stat", "title": "Error Rate",
-      "description": "Percentage of API requests that resulted in errors",
-      "datasource": {"type": "prometheus", "uid": "amp"},
+      "description": "Percentage of API requests that resulted in errors (Athena: api_error vs api_request).",
+      "datasource": {"type": "grafana-athena-datasource", "uid": "athena"},
       "gridPos": {"h": 4, "w": 8, "x": 16, "y": 1},
-      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "amp"}, "expr": "sum(increase(claude_code_event_count_total{organization_id=~\"$organization_id\", user_id=~\"$user_id\", event_type=\"api_error\"}[$__range])) / sum(increase(claude_code_event_count_total{organization_id=~\"$organization_id\", user_id=~\"$user_id\", event_type=\"api_request\"}[$__range])) * 100 OR vector(0)", "legendFormat": "Error Rate", "instant": true}],
-      "fieldConfig": {"defaults": {"displayName": "Error Rate", "color": {"mode": "thresholds"}, "unit": "percent", "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 5}, {"color": "red", "value": 15}]}}},
-      "options": {"colorMode": "background_solid", "graphMode": "area", "textMode": "value_and_name", "reduceOptions": {"calcs": ["lastNotNull"]}}
+      "targets": [{"format": 1, "connectionArgs": {"region": "__default", "catalog": "__default", "database": "__default", "resultReuseEnabled": false, "resultReuseMaxAgeInMinutes": 60}, "refId": "A", "datasource": {"type": "grafana-athena-datasource", "uid": "athena"}, "rawSQL": "SELECT ROUND(SUM(CASE WHEN event_name='claude_code.api_error' THEN 1 ELSE 0 END) * 100.0 / NULLIF(SUM(CASE WHEN event_name IN ('claude_code.api_request','claude_code.api_error') THEN 1 ELSE 0 END), 0), 2) AS error_rate FROM claude_code_telemetry.events WHERE event_name IN ('claude_code.api_request','claude_code.api_error') AND \"timestamp\" BETWEEN from_iso8601_timestamp('${__from:date:iso}') AND from_iso8601_timestamp('${__to:date:iso}') AND (team_id LIKE '${team}' OR '${team}' = '%') AND (COALESCE(user_name, user_id) LIKE '${user}' OR '${user}' = '%')"}],
+      "fieldConfig": {"defaults": {"displayName": "Error Rate", "color": {"mode": "thresholds"}, "unit": "percent", "decimals": 2, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 5}, {"color": "red", "value": 15}]}}},
+      "options": {"colorMode": "background_solid", "graphMode": "none", "textMode": "value_and_name", "reduceOptions": {"calcs": ["lastNotNull"]}}
+    },
+    {
+      "id": 21, "type": "stat", "title": "Subagent Cost Share",
+      "description": "Percent of cost attributed to subagents (agent_name not empty) vs main thread.",
+      "datasource": {"type": "prometheus", "uid": "amp"},
+      "gridPos": {"h": 4, "w": 24, "x": 0, "y": 13},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "amp"}, "expr": "sum(increase(claude_code_cost_usage_USD_total{agent_name!=\"\", model=~\"$model\"}[$__range])) / sum(increase(claude_code_cost_usage_USD_total{model=~\"$model\"}[$__range])) * 100", "legendFormat": "Subagent Cost %", "instant": true}],
+      "fieldConfig": {"defaults": {"displayName": "Subagent Cost Share", "color": {"mode": "fixed", "fixedColor": "#9B59B6"}, "unit": "percent", "decimals": 1}},
+      "options": {"colorMode": "background_solid", "graphMode": "none", "textMode": "value_and_name", "reduceOptions": {"calcs": ["lastNotNull"]}}
     },
 
     {

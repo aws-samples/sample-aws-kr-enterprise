@@ -37,6 +37,15 @@ Amazon Athena (SQL 쿼리 분석)
 | `claude_code.api_request` | Claude API 호출 완료 |
 | `claude_code.api_error` | Claude API 호출 오류 |
 | `claude_code.tool_decision` | 도구 실행 승인/거부 결정 |
+| `claude_code.hook_execution_start` | Hook 실행 시작 (2.x 신규) |
+| `claude_code.hook_execution_complete` | Hook 실행 완료 (2.x 신규) |
+| `claude_code.hook_registered` | Hook 등록 (2.x 신규) |
+| `claude_code.plugin_loaded` | 플러그인 로드 (2.x 신규) |
+| `claude_code.mcp_server_connection` | MCP 서버 연결 (2.x 신규) |
+| `claude_code.skill_activated` | Skill 활성화 (2.x 신규) |
+| `claude_code.subagent_completed` | 서브에이전트 실행 완료 (2.x 신규) |
+
+> **2.x 스키마 업그레이드 주의**: 2.x 신규 이벤트와 신규 컬럼은 스키마 업그레이드 배포 이후에 기록된 데이터에만 채워집니다. 업그레이드 이전에 기록된 Parquet 파일을 조회하면 신규 컬럼은 모두 `NULL`로 반환됩니다(append-only, 하위 호환).
 
 ---
 
@@ -155,6 +164,57 @@ s3://claude-code-telemetry-events/
 | `status_code` | `INT` | Yes | `api_error` | HTTP 상태 코드 |
 | `attempt` | `INT` | Yes | `api_error` | 재시도 횟수 |
 
+#### Claude Code 2.x 확장 필드 (append-only)
+
+아래 38개 컬럼은 2.x 스키마 업그레이드 이후 수집된 데이터에만 채워지며, 이전 데이터에서는 `NULL`입니다.
+
+| 필드 이름 | 데이터 타입 | Nullable | 관련 이벤트 | 설명 |
+|---|---|---|---|---|
+| `event_sequence` | `BIGINT` | Yes | (전체) | 단조 증가 이벤트 시퀀스 번호 |
+| `agent_name` | `STRING` | Yes | `api_request`, `api_error` | Subagent 이름 (빈 값/NULL = 메인 스레드) |
+| `effort` | `STRING` | Yes | `api_request`, `api_error` | Effort 모드 (`high`, `xhigh`) |
+| `query_source` | `STRING` | Yes | `api_request`, `api_error` | 쿼리 소스 (`repl_main_thread`) |
+| `mcp_server_name` | `STRING` | Yes | `api_request` | 요청에 귀속된 MCP 서버 이름 |
+| `mcp_tool_name` | `STRING` | Yes | `api_request` | 요청에 귀속된 MCP 도구 이름 |
+| `cost_usd_micros` | `BIGINT` | Yes | `api_request` | API 비용 (micro-USD) |
+| `request_id` | `STRING` | Yes | `api_error` | API 요청 id |
+| `error_type` | `STRING` | Yes | `tool_result` | 오류 카테고리 |
+| `tool_input_size_bytes` | `INT` | Yes | `tool_result` | 도구 입력 크기 (bytes) |
+| `tool_use_id` | `STRING` | Yes | `tool_result`, `tool_decision` | 도구 호출 id |
+| `mcp_server_scope` | `STRING` | Yes | `tool_result` | MCP 서버 스코프 |
+| `command_name` | `STRING` | Yes | `user_prompt` | 슬래시 커맨드 이름 |
+| `command_source` | `STRING` | Yes | `user_prompt` | 커맨드 소스 |
+| `hook_name` | `STRING` | Yes | `hook_execution_*` | Hook 이름 |
+| `hook_event` | `STRING` | Yes | `hook_*` | Hook 라이프사이클 이벤트 (`PreToolUse`) |
+| `hook_source` | `STRING` | Yes | `hook_*` | Hook 소스 (`merged`, `flagSettings`) |
+| `hook_type` | `STRING` | Yes | `hook_registered` | Hook 유형 (`command`) |
+| `total_duration_ms` | `DOUBLE` | Yes | `hook_execution_complete` | 전체 Hook 실행 소요 시간 (ms) |
+| `num_hooks` | `INT` | Yes | `hook_execution_*` | Hook 수 |
+| `num_success` | `INT` | Yes | `hook_execution_complete` | 성공한 Hook 수 |
+| `num_blocking` | `INT` | Yes | `hook_execution_complete` | 차단 Hook 수 |
+| `num_cancelled` | `INT` | Yes | `hook_execution_complete` | 취소된 Hook 수 |
+| `num_non_blocking_error` | `INT` | Yes | `hook_execution_complete` | 비차단 Hook 오류 수 |
+| `plugin_name` | `STRING` | Yes | `plugin_loaded`, `skill_activated`, `mcp_server_connection` | 플러그인 이름 |
+| `plugin_scope` | `STRING` | Yes | `plugin_loaded` | 플러그인 스코프 (`official`) |
+| `plugin_version` | `STRING` | Yes | `plugin_loaded` | 플러그인 버전 |
+| `marketplace_name` | `STRING` | Yes | `plugin_loaded`, `skill_activated` | 마켓플레이스 이름 |
+| `enabled_via` | `STRING` | Yes | `plugin_loaded` | 플러그인 활성화 경로 |
+| `has_mcp` | `BOOLEAN` | Yes | `plugin_loaded` | 플러그인 MCP 제공 여부 |
+| `has_hooks` | `BOOLEAN` | Yes | `plugin_loaded` | 플러그인 Hook 제공 여부 |
+| `skill_name` | `STRING` | Yes | `skill_activated` | Skill 이름 |
+| `skill_source` | `STRING` | Yes | `skill_activated` | Skill 소스 (`plugin`) |
+| `invocation_trigger` | `STRING` | Yes | `skill_activated` | Skill 호출 트리거 |
+| `transport_type` | `STRING` | Yes | `mcp_server_connection` | MCP 전송 방식 (`stdio`) |
+| `mcp_status` | `STRING` | Yes | `mcp_server_connection` | MCP 연결 상태 (`connected`) |
+| `server_scope` | `STRING` | Yes | `mcp_server_connection` | MCP 서버 스코프 |
+| `is_plugin` | `BOOLEAN` | Yes | `mcp_server_connection` | MCP 서버가 플러그인 제공 여부 |
+| `agent_type` | `STRING` | Yes | `subagent_completed` | 서브에이전트 유형 (예: `general-purpose`) |
+| `agent_source` | `STRING` | Yes | `subagent_completed` | 서브에이전트 출처 (예: `built-in`) |
+| `is_built_in` | `BOOLEAN` | Yes | `subagent_completed` | 빌트인 서브에이전트 여부 |
+| `is_async` | `BOOLEAN` | Yes | `subagent_completed` | 비동기 실행 여부 |
+| `total_tokens` | `BIGINT` | Yes | `subagent_completed` | 서브에이전트가 사용한 총 토큰 수 |
+| `total_tool_uses` | `INT` | Yes | `subagent_completed` | 서브에이전트의 총 도구 사용 횟수 |
+
 ### 이벤트별 필드 매핑
 
 아래 표는 각 이벤트 유형에서 값이 존재하는 고유 필드를 나타낸다 (공통 필드 제외).
@@ -180,6 +240,41 @@ s3://claude-code-telemetry-events/
 | `cache_creation_tokens` | - | - | O | - | - |
 | `status_code` | - | - | - | O | - |
 | `attempt` | - | - | - | O | - |
+
+#### 2.x 신규 이벤트별 필드 매핑
+
+아래 표는 2.x 신규 이벤트 유형에서 값이 존재하는 고유 필드를 나타낸다 (공통 필드 제외). 모든 신규 이벤트에 `event_sequence`가 존재한다.
+
+| 필드 | `hook_execution_start` | `hook_execution_complete` | `hook_registered` | `plugin_loaded` | `mcp_server_connection` | `skill_activated` |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| `event_sequence` | O | O | O | O | O | O |
+| `hook_name` | O | O | - | - | - | - |
+| `hook_event` | O | O | O | - | - | - |
+| `hook_source` | O | O | O | - | - | - |
+| `hook_type` | - | - | O | - | - | - |
+| `total_duration_ms` | - | O | - | - | - | - |
+| `num_hooks` | O | O | - | - | - | - |
+| `num_success` | - | O | - | - | - | - |
+| `num_blocking` | - | O | - | - | - | - |
+| `num_cancelled` | - | O | - | - | - | - |
+| `num_non_blocking_error` | - | O | - | - | - | - |
+| `plugin_name` | - | - | O | O | O | O |
+| `plugin_scope` | - | - | - | O | - | - |
+| `plugin_version` | - | - | - | O | - | - |
+| `marketplace_name` | - | - | - | O | - | O |
+| `enabled_via` | - | - | - | O | - | - |
+| `has_mcp` | - | - | - | O | - | - |
+| `has_hooks` | - | - | - | O | - | - |
+| `transport_type` | - | - | - | - | O | - |
+| `mcp_status` | - | - | - | - | O | - |
+| `server_scope` | - | - | - | - | O | - |
+| `is_plugin` | - | - | - | - | O | - |
+| `duration_ms` | - | - | - | - | O | - |
+| `skill_name` | - | - | - | - | - | O |
+| `skill_source` | - | - | - | - | - | O |
+| `invocation_trigger` | - | - | - | - | - | O |
+
+> 또한 기존 이벤트의 2.x 확장 필드: `api_request`/`api_error`에 `agent_name`, `effort`, `query_source`(및 `api_request`의 `mcp_server_name`, `mcp_tool_name`, `cost_usd_micros`, `api_error`의 `request_id`), `tool_result`에 `error_type`, `tool_input_size_bytes`, `tool_use_id`, `mcp_server_scope`, `tool_decision`에 `tool_use_id`, `user_prompt`에 `command_name`, `command_source`가 추가된다.
 
 ### Parquet 파일 속성
 
@@ -353,7 +448,59 @@ CREATE EXTERNAL TABLE claude_code_telemetry.events (
     cache_read_tokens   BIGINT      COMMENT '캐시 읽기 토큰 수 (api_request)',
     cache_creation_tokens BIGINT    COMMENT '캐시 생성 토큰 수 (api_request)',
     status_code         INT         COMMENT 'HTTP 상태 코드 (api_error)',
-    attempt             INT         COMMENT '재시도 횟수 (api_error)'
+    attempt             INT         COMMENT '재시도 횟수 (api_error)',
+
+    -- Claude Code 2.x 확장 스키마 (live OTLP 2026-06 검증, append-only)
+    -- 공통
+    event_sequence      BIGINT      COMMENT '단조 증가 이벤트 시퀀스 번호',
+    -- api_request / api_error: subagent, effort, MCP attribution
+    agent_name          STRING      COMMENT 'Subagent 이름 (api_request, api_error)',
+    effort              STRING      COMMENT 'Effort 모드 예: high/xhigh (api_request, api_error)',
+    query_source        STRING      COMMENT '쿼리 소스 예: repl_main_thread (api_request, api_error)',
+    mcp_server_name     STRING      COMMENT '요청에 귀속된 MCP 서버 이름 (api_request)',
+    mcp_tool_name       STRING      COMMENT '요청에 귀속된 MCP 도구 이름 (api_request)',
+    cost_usd_micros     BIGINT      COMMENT 'API 비용 micro-USD (api_request)',
+    request_id          STRING      COMMENT 'API 요청 id (api_error)',
+    -- tool_result 확장
+    error_type          STRING      COMMENT '오류 카테고리 (tool_result)',
+    tool_input_size_bytes INT       COMMENT '도구 입력 크기 bytes (tool_result)',
+    tool_use_id         STRING      COMMENT '도구 호출 id (tool_result, tool_decision)',
+    mcp_server_scope    STRING      COMMENT 'MCP 서버 스코프 (tool_result)',
+    -- user_prompt 확장
+    command_name        STRING      COMMENT '슬래시 커맨드 이름 (user_prompt)',
+    command_source      STRING      COMMENT '커맨드 소스 (user_prompt)',
+    -- hook_* 이벤트
+    hook_name           STRING      COMMENT 'Hook 이름 (hook_execution_*)',
+    hook_event          STRING      COMMENT 'Hook 라이프사이클 이벤트 예: PreToolUse (hook_*)',
+    hook_source         STRING      COMMENT 'Hook 소스 예: merged/flagSettings (hook_*)',
+    hook_type           STRING      COMMENT 'Hook 유형 예: command (hook_registered)',
+    total_duration_ms   DOUBLE      COMMENT '전체 Hook 실행 소요 시간 ms (hook_execution_complete)',
+    num_hooks           INT         COMMENT 'Hook 수 (hook_execution_*)',
+    num_success         INT         COMMENT '성공한 Hook 수 (hook_execution_complete)',
+    num_blocking        INT         COMMENT '차단 Hook 수 (hook_execution_complete)',
+    num_cancelled       INT         COMMENT '취소된 Hook 수 (hook_execution_complete)',
+    num_non_blocking_error INT      COMMENT '비차단 Hook 오류 수 (hook_execution_complete)',
+    -- plugin_loaded / skill_activated / mcp_server_connection
+    plugin_name         STRING      COMMENT '플러그인 이름 (plugin_loaded, skill_activated, mcp_server_connection)',
+    plugin_scope        STRING      COMMENT '플러그인 스코프 예: official (plugin_loaded)',
+    plugin_version      STRING      COMMENT '플러그인 버전 (plugin_loaded)',
+    marketplace_name    STRING      COMMENT '마켓플레이스 이름 (plugin_loaded, skill_activated)',
+    enabled_via         STRING      COMMENT '플러그인 활성화 경로 (plugin_loaded)',
+    has_mcp             BOOLEAN     COMMENT '플러그인 MCP 제공 여부 (plugin_loaded)',
+    has_hooks           BOOLEAN     COMMENT '플러그인 Hook 제공 여부 (plugin_loaded)',
+    skill_name          STRING      COMMENT 'Skill 이름 (skill_activated)',
+    skill_source        STRING      COMMENT 'Skill 소스 예: plugin (skill_activated)',
+    invocation_trigger  STRING      COMMENT 'Skill 호출 트리거 (skill_activated)',
+    transport_type      STRING      COMMENT 'MCP 전송 방식 예: stdio (mcp_server_connection)',
+    mcp_status          STRING      COMMENT 'MCP 연결 상태 예: connected (mcp_server_connection)',
+    server_scope        STRING      COMMENT 'MCP 서버 스코프 (mcp_server_connection)',
+    is_plugin           BOOLEAN     COMMENT 'MCP 서버가 플러그인 제공 여부 (mcp_server_connection)',
+    agent_type          STRING      COMMENT '서브에이전트 유형 (subagent_completed)',
+    agent_source        STRING      COMMENT '서브에이전트 출처 (subagent_completed)',
+    is_built_in         BOOLEAN     COMMENT '빌트인 서브에이전트 여부 (subagent_completed)',
+    is_async            BOOLEAN     COMMENT '비동기 실행 여부 (subagent_completed)',
+    total_tokens        BIGINT      COMMENT '서브에이전트 총 토큰 수 (subagent_completed)',
+    total_tool_uses     INT         COMMENT '서브에이전트 총 도구 사용 횟수 (subagent_completed)'
 )
 PARTITIONED BY (
     year                STRING      COMMENT '연도 (YYYY)',
@@ -734,6 +881,66 @@ WHERE event_name = 'claude_code.api_request'
   AND year = '2026' AND month = '02'
 GROUP BY department, cost_center, team_id
 ORDER BY total_cost_usd DESC;
+```
+
+> **참고 (2.x 신규 컬럼)**: 아래 13~15번 쿼리는 2.x 확장 컬럼(`agent_name`, `effort`, `mcp_status`, `plugin_name` 등)을 사용한다. 이 컬럼들은 스키마 업그레이드 배포 이후 기록된 데이터에만 채워지므로, 그 이전 파티션을 조회하면 `NULL`로 반환된다.
+
+### 13. Subagent별 비용 귀속 (2.x)
+
+```sql
+-- Subagent별 API 호출 비용/지연 시간 귀속 (agent_name NULL = 메인 스레드)
+SELECT
+    COALESCE(agent_name, '(main thread)') AS agent,
+    COALESCE(effort, '-')                 AS effort,
+    COUNT(*)                              AS api_calls,
+    ROUND(SUM(cost_usd), 4)               AS total_cost_usd,
+    ROUND(AVG(duration_ms), 0)            AS avg_latency_ms
+FROM claude_code_telemetry.events
+WHERE event_name = 'claude_code.api_request'
+  AND year = '2026' AND month = '06'
+GROUP BY agent_name, effort
+ORDER BY total_cost_usd DESC;
+```
+
+### 14. MCP 서버 연결 성공률 (2.x)
+
+```sql
+-- MCP 서버별 연결 시도/성공/평균 연결 시간 및 전송 방식
+SELECT
+    COALESCE(plugin_name, '(standalone)') AS server,
+    COUNT(*)                              AS attempts,
+    SUM(CASE WHEN mcp_status = 'connected' THEN 1 ELSE 0 END) AS connected,
+    ROUND(
+        SUM(CASE WHEN mcp_status = 'connected' THEN 1 ELSE 0 END) * 100.0
+        / NULLIF(COUNT(*), 0), 1
+    )                                     AS success_pct,
+    ROUND(AVG(duration_ms), 0)            AS avg_connect_ms,
+    MAX(transport_type)                   AS transport,
+    MAX(server_scope)                     AS scope
+FROM claude_code_telemetry.events
+WHERE event_name = 'claude_code.mcp_server_connection'
+  AND year = '2026' AND month = '06'
+GROUP BY plugin_name
+ORDER BY attempts DESC;
+```
+
+### 15. 플러그인 채택 현황 (2.x)
+
+```sql
+-- 마켓플레이스별 로드된 플러그인 및 제공 기능(MCP/Hook) 매트릭스
+SELECT
+    plugin_name,
+    MAX(plugin_scope)               AS scope,
+    MAX(plugin_version)             AS version,
+    COALESCE(MAX(marketplace_name), '(local)') AS marketplace,
+    BOOL_OR(has_mcp)                AS has_mcp,
+    BOOL_OR(has_hooks)              AS has_hooks,
+    COUNT(DISTINCT session_id)      AS sessions
+FROM claude_code_telemetry.events
+WHERE event_name = 'claude_code.plugin_loaded'
+  AND year = '2026' AND month = '06'
+GROUP BY plugin_name
+ORDER BY sessions DESC;
 ```
 
 ---

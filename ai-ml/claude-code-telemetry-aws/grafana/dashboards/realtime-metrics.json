@@ -11,6 +11,7 @@
   "version": 1,
   "time": {"from": "now-6h", "to": "now"},
   "links": [
+    {"title": "Extensions & Agents", "url": "/d/claude-code-extensions", "type": "link", "icon": "apps", "tooltip": "Subagent/effort cost, MCP, plugins, skills"},
     {"title": "Overview", "url": "/d/claude-code-overview", "type": "link", "icon": "home", "tooltip": "Executive summary with Prometheus + Athena highlights"},
     {"title": "Cost Deep Analysis (Athena)", "url": "/d/claude-code-cost", "type": "link", "icon": "database", "tooltip": "Event-level cost efficiency, speed mode, per-call analysis"},
     {"title": "Usage & Session Insights (Athena)", "url": "/d/claude-code-usage", "type": "link", "icon": "database", "tooltip": "Session drill-down, prompt analytics, event distribution"},

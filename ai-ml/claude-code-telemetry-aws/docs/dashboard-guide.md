@@ -1,6 +1,6 @@
 # Claude Code 대시보드 가이드
 
-이 문서는 Claude Code Observability Platform의 Grafana 대시보드 6종에 대한 상세 사용 가이드입니다.
+이 문서는 Claude Code Observability Platform의 Grafana 대시보드 7종에 대한 상세 사용 가이드입니다.
 
 ---
 
@@ -13,10 +13,11 @@
 5. [Usage & Session Insights (Athena)](#5-usage--session-insights-athena)
 6. [Tool Analytics (Athena)](#6-tool-analytics-athena)
 7. [API Performance (Athena)](#7-api-performance-athena)
-8. [템플릿 변수 사용법](#8-템플릿-변수-사용법)
-9. [핵심 인사이트 해석 가이드](#9-핵심-인사이트-해석-가이드)
-10. [FAQ](#10-faq)
-11. [트러블슈팅](#11-트러블슈팅)
+8. [Extensions & Agents (Prometheus + Athena)](#8-extensions--agents-prometheus--athena)
+9. [템플릿 변수 사용법](#9-템플릿-변수-사용법)
+10. [핵심 인사이트 해석 가이드](#10-핵심-인사이트-해석-가이드)
+11. [FAQ](#11-faq)
+12. [트러블슈팅](#12-트러블슈팅)
 
 ---
 
@@ -33,13 +34,16 @@
 
 ### 1.2 대시보드 구성
 
-Claude Code Observability Platform은 **6개 프로덕션 수준 대시보드, 총 80개 패널**로 구성되어 있습니다(Grafana JSON 전수 검증 기준). 게이지 패널, 스파크라인, 그라디언트 채움, 임계값 기반 색상, 테이블 셀 컬러링, 드릴다운 데이터 링크 등 운영 환경에 적합한 시각화를 제공합니다.
+Claude Code Observability Platform은 **7개 프로덕션 수준 대시보드, 총 91개 패널**(행 헤더 제외, Grafana JSON 전수 검증 기준)로 구성되어 있습니다. 각 대시보드의 패널 수는 행 헤더(row)를 제외하고 접힌 행 내부의 패널까지 모두 포함하여 집계했습니다. 게이지 패널, 스파크라인, 그라디언트 채움, 임계값 기반 색상, 테이블 셀 컬러링, 드릴다운 데이터 링크 등 운영 환경에 적합한 시각화를 제공합니다.
+
+> **2.x 업데이트**: Claude Code 2.x 텔레메트리(Hooks, Plugins, MCP, Skills, Subagent, Effort)를 다루는 **Extensions & Agents** 대시보드(UID `claude-code-extensions`, 12 패널)가 신규 추가되었습니다. 또한 Overview의 **Error Rate** 패널은 존재하지 않는 이벤트 카운트 메트릭을 조회하던 버그를 Athena 쿼리(`api_error` vs `api_request` 비율)로 교체하여 수정했고, **Subagent Cost Share** KPI가 추가되어 Overview는 18 패널이 되었습니다.
 
 **통합 대시보드 (Prometheus + Athena)**:
 
 | 대시보드 | UID | 패널 수 | 데이터 소스 | 목적 |
 |----------|-----|---------|-------------|------|
-| **Overview** | `claude-code-overview` | 17 | Prometheus (AMP) + Athena | 핵심 KPI 통합 요약(스파크라인, 임계값 색상), 모든 대시보드의 진입점 |
+| **Overview** | `claude-code-overview` | 18 | Prometheus (AMP) + Athena | 핵심 KPI 통합 요약(스파크라인, 임계값 색상), 모든 대시보드의 진입점. Error Rate(Athena) + Subagent Cost Share(AMP) 포함 |
+| **Extensions & Agents** | `claude-code-extensions` | 12 | Prometheus (AMP) + Athena | Subagent/Effort 비용 귀속(AMP), MCP 서버/도구 분석 및 Plugin/Skill 채택 현황(Athena). 2.x 텔레메트리 전용 |
 
 **Prometheus(AMP) 기반 대시보드 (실시간 메트릭)**:
 
@@ -115,35 +119,37 @@ Claude Code (OTel SDK) --> ADOT Collector --> CloudWatch Logs
 
 **목적**: Prometheus 실시간 메트릭과 Athena 이벤트 심층 분석을 통합한 Executive Summary 대시보드. 핵심 KPI를 한눈에 파악하고, 모든 대시보드로의 네비게이션 진입점 역할을 합니다.
 
-**UID**: `claude-code-overview` | **패널 수**: 17 | **데이터 소스**: Prometheus (AMP) + Athena
+**UID**: `claude-code-overview` | **패널 수**: 18 | **데이터 소스**: Prometheus (AMP) + Athena
 
 ### 2.1 패널 구성
 
-**Prometheus 기반 패널 (10개)** - 실시간 집계 메트릭:
+**Prometheus 기반 패널 (12개)** - 실시간 집계 메트릭:
 
 | 패널 | 시각화 | 데이터 소스 | 설명 |
 |------|--------|-------------|------|
-| **Total Sessions** | Stat (스파크라인, 임계값 색상) | Prometheus | 총 세션 수. 스파크라인으로 추이 표시, 임계값 기반 색상 |
-| **Total Cost (USD)** | Stat (스파크라인, 임계값 색상) | Prometheus | 총 비용. 스파크라인 및 임계값($500/$1000) 기반 초록/노란/빨간 색상 |
-| **Total Tokens** | Stat (스파크라인, 임계값 색상) | Prometheus | 총 토큰 사용량. 임계값(1M/5M) 기반 색상 |
-| **Active Time** | Stat (스파크라인, 임계값 색상) | Prometheus | 총 활성 시간. 임계값(1h/8h) 기반 색상 |
-| **Commits** | Stat (스파크라인) | Prometheus | 총 커밋 수. 스파크라인으로 추이 표시 |
-| **Pull Requests** | Stat (스파크라인) | Prometheus | 총 PR 수. 스파크라인으로 추이 표시 |
-| **Cost Trend** | Time Series (그라디언트 채움) | Prometheus | 비용 증가 추이. 축 라벨 및 드릴다운 링크 포함 |
-| **Lines of Code** | Time Series (그라디언트 채움) | Prometheus | 코드 변경량(추가/삭제) 추이. 그라디언트 채움 적용 |
-| **Token Rate by Model** | Time Series (그라디언트 채움) | Prometheus | 모델별 토큰 사용률 추이 |
-| **Token by Type** | Time Series (Stacked, 그라디언트 채움) | Prometheus | 토큰 유형별(input/output/cacheRead/cacheCreation) 사용 추이 |
+| **Total Cost** | Stat (임계값 색상) | Prometheus | 총 비용. 임계값 기반 초록/노란/빨간 색상 |
+| **Lines Changed** | Stat | Prometheus | 코드 변경 라인 수(추가+삭제) |
+| **Subagent Cost Share** | Stat | Prometheus | Subagent(`agent_name` 라벨이 있는) 비용이 전체 비용에서 차지하는 비중. 2.x 신규 KPI |
+| **Total Tokens** | Stat (임계값 색상) | Prometheus | 총 토큰 사용량. 임계값 기반 색상 |
+| **Input Tokens** | Stat | Prometheus | 총 입력 토큰 수 |
+| **Output Tokens** | Stat | Prometheus | 총 출력 토큰 수 |
+| **Cache Tokens** | Stat | Prometheus | 캐시 토큰 수(읽기+생성) |
+| **Cost per Minute by Model** | Time Series | Prometheus | 모델별 분당 비용 증가율 추이 |
+| **Tokens per Minute by Model** | Time Series | Prometheus | 모델별 분당 토큰 사용률 추이 |
+| **Token I/O (Input & Output)** | Time Series | Prometheus | 입력/출력 토큰 추이 |
+| **Cache Token Usage (Read & Write)** | Time Series | Prometheus | 캐시 읽기/생성 토큰 추이 |
+| **Lines of Code (Added vs Removed)** | Time Series | Prometheus | 코드 변경량(추가/삭제) 추이 |
 
 **Athena 기반 패널 (6개)** - 이벤트 심층 분석:
 
 | 패널 | 시각화 | 데이터 소스 | 설명 |
 |------|--------|-------------|------|
-| **API Latency (p50/p90/p99)** | Time Series | Athena | API 레이턴시 백분위수 추이 |
-| **Event Distribution** | Pie Chart | Athena | 이벤트 유형별(api_request, tool_result, user_prompt 등) 분포 |
-| **Event Flow** | Time Series | Athena | 시간대별 이벤트 발생 추이 |
-| **Top Tools** | Bar Chart | Athena | 가장 많이 사용된 도구 순위 |
-| **Code Edit Decisions** | Bar Gauge | Athena | 언어별 코드 편집 도구 결정 순위. 그라디언트 표시 |
-| **Recent Sessions** | Table | Athena | 최근 세션 목록 (세션ID, 사용자, 비용, 도구 사용 수) |
+| **Error Rate** | Stat (임계값 색상) | Athena | API 에러율(`api_error` vs `api_request` 비율). 기존 존재하지 않던 이벤트 카운트 메트릭 버그를 Athena 쿼리로 교체 |
+| **Hourly Event Flow** | Time Series | Athena | 시간대별 이벤트 발생 추이 |
+| **Top Users by Cost** | Table | Athena | 비용 상위 사용자 목록 |
+| **Top 10 Tools** | Bar Chart | Athena | 가장 많이 사용된 도구 순위 |
+| **API Latency p50/p90** | Time Series | Athena | API 레이턴시 백분위수 추이 (Details 행, 기본 접힘) |
+| **Recent Sessions** | Table | Athena | 최근 세션 목록 (세션ID, 사용자, 비용, 도구 사용 수) (Details 행, 기본 접힘) |
 
 ### 2.2 템플릿 변수
 
@@ -437,11 +443,65 @@ Real-Time Metrics 대시보드에 데이터가 표시되지 않는 경우:
 
 ---
 
-## 8. 템플릿 변수 사용법
+## 8. Extensions & Agents (Prometheus + Athena)
+
+**목적**: Claude Code 2.x에서 신규 도입된 Hooks, Plugins, MCP, Skills, Subagent(Agent), Effort 텔레메트리를 시각화합니다. Subagent/Effort/Skill 비용·토큰 귀속은 AMP 라벨로 즉시(과거 데이터 포함) 분석하고, MCP 연결·Plugin/Skill 채택 상세는 Athena 이벤트로 분석합니다.
+
+**UID**: `claude-code-extensions` | **패널 수**: 10 (+ 3개 행 헤더) | **데이터 소스**: Prometheus (AMP) + Athena | **필터**: model, user
+
+> **데이터 가용성**: AMP 기반 패널(Subagent/Effort/Skill 비용·토큰, MCP Tool Usage)은 라벨이 이미 수집되어 있으므로 **전체 기간(과거 포함)** 에 대해 즉시 렌더링됩니다. Athena 기반 패널(MCP 연결, Plugin 채택/매트릭스, Subagent Activity Detail)은 2.x 스키마 배포 시점 이후 데이터부터 채워지며, 그 이전 시간 범위는 비어 있을 수 있습니다(정상).
+
+### 8.1 패널 구성
+
+대시보드는 3개 섹션(행)으로 구성됩니다.
+
+#### Section 1: Subagent & Effort (Prometheus)
+
+| 패널 | 시각화 | 데이터 소스 | 설명 |
+|------|--------|-------------|------|
+| **Cost by Subagent** | Bar Chart (수평) | Prometheus | `agent_name` 라벨별 누적 비용. 빈 라벨 = 메인 스레드 |
+| **Cost by Effort Mode** | Pie Chart (도넛) | Prometheus | Effort 모드(`high`, `xhigh`)별 비용 분포 |
+| **Token Rate by Effort Mode** | Time Series (그라디언트) | Prometheus | Effort 모드별 토큰 소비율(tokens/min) 추이 |
+| **Subagent Activity Detail** | Table (셀 컬러링) | Athena | Subagent별 API 호출 수, 비용, 평균 지연 시간. `total_cost`에 배경 그라디언트 |
+| **Subagent Completion Summary** | Table (셀 컬러링) | Athena | `subagent_completed` 이벤트 기반 Subagent 유형별 실행 횟수, 평균 소요 시간, 평균 토큰, 평균 도구 사용 수. `avg_tokens`에 배경 그라디언트 |
+
+#### Section 2: MCP (Athena)
+
+| 패널 | 시각화 | 데이터 소스 | 설명 |
+|------|--------|-------------|------|
+| **MCP Connection Success Rate** | Gauge (임계값) | Athena | `status='connected'` 비율. 빨간(<80%)/노란/초록(>95%) |
+| **MCP Server Connections** | Table | Athena | MCP 서버별 연결 시도/성공/평균 연결 시간/전송 방식 |
+| **MCP Tool Usage (cost)** | Bar Chart (수평) | Prometheus | `mcp_tool_name` 라벨별 비용 귀속 |
+
+#### Section 3: Plugins & Skills
+
+| 패널 | 시각화 | 데이터 소스 | 설명 |
+|------|--------|-------------|------|
+| **Skill Activation Frequency** | Bar Chart (수평) | Prometheus | `skill_name` 라벨별 활성 빈도. 빈 라벨(메인 스레드) 제외 |
+| **Plugins Loaded by Marketplace** | Bar Chart (수평) | Athena | 마켓플레이스별 로드된 distinct 플러그인 수 |
+| **Plugin Capability Matrix** | Table | Athena | 플러그인별 스코프/버전/MCP·Hook 제공 여부/세션 수 |
+
+### 8.2 템플릿 변수
+
+| 변수 | 데이터 소스 | 설명 |
+|------|-------------|------|
+| `$model` | Prometheus | 모델 필터 (AMP 비용/토큰 패널에 적용) |
+| `$user` | Athena | 사용자 필터 (`user_name` 우선, 없으면 `user_id`). Athena 패널에 적용 |
+
+### 8.3 주요 사용 시나리오
+
+- **Subagent 비용 귀속**: Cost by Subagent에서 Explore/Plan 등 Subagent가 차지하는 비용을 확인하고, Overview의 Subagent Cost Share KPI와 함께 메인 스레드 대비 비중을 파악
+- **Effort 모드 비용 관리**: Cost by Effort Mode / Token Rate by Effort에서 `xhigh` 모드의 비용·토큰 영향을 모니터링
+- **MCP 안정성 점검**: MCP Connection Success Rate와 MCP Server Connections에서 연결 실패가 잦은 서버 식별
+- **Plugin/Skill 채택 분석**: Plugin Capability Matrix와 Skill Activation Frequency로 어떤 확장이 실제로 사용되는지 파악
+
+---
+
+## 9. 템플릿 변수 사용법
 
 모든 대시보드는 상단에 드롭다운 필터를 제공하여 데이터를 세분화할 수 있습니다.
 
-### 8.1 변수 목록
+### 9.1 변수 목록
 
 **Athena 대시보드 (4종)**:
 
@@ -460,14 +520,14 @@ Real-Time Metrics 대시보드에 데이터가 표시되지 않는 경우:
 | `$user_id` | User | 사용자 ID 필터. 선택한 조직 내 사용자 자동 조회 |
 | `$model` | Model | 모델 필터. 비용/토큰 관련 패널에 적용 |
 
-### 8.2 사용 방법
+### 9.2 사용 방법
 
 1. **전체 보기**: 기본값 "All"을 선택하면 모든 데이터를 표시합니다
 2. **특정 항목 필터**: 드롭다운에서 특정 값을 선택하면 해당 항목만 표시됩니다
 3. **복합 필터**: 여러 변수를 조합하여 사용할 수 있습니다 (예: team=backend, model=claude-opus-4-6)
 4. **시간 범위**: Grafana 기본 시간 범위 선택기(우측 상단)로 분석 기간을 설정합니다
 
-### 8.3 Team 변수 활성화
+### 9.3 Team 변수 활성화
 
 `team_id` 변수는 Claude Code 클라이언트에서 OTel 리소스 속성을 설정해야 활성화됩니다.
 
@@ -479,9 +539,9 @@ export OTEL_RESOURCE_ATTRIBUTES="team_id=backend,department=engineering,cost_cen
 
 ---
 
-## 9. 핵심 인사이트 해석 가이드
+## 10. 핵심 인사이트 해석 가이드
 
-### 9.1 Opus vs Sonnet 비용 구조
+### 10.1 Opus vs Sonnet 비용 구조
 
 분석 데이터에서 확인된 모델별 비용 패턴:
 
@@ -498,7 +558,7 @@ export OTEL_RESOURCE_ATTRIBUTES="team_id=backend,department=engineering,cost_cen
 - Real-Time Metrics > Cost by Model (실시간 비용 비중)
 - Cost Deep Analysis > Model Cost Efficiency Comparison (요청 레벨 상세)
 
-### 9.2 모델 역할 패턴
+### 10.2 모델 역할 패턴
 
 Claude Code는 두 모델을 서로 다른 역할로 사용합니다:
 
@@ -514,7 +574,7 @@ Claude Code는 두 모델을 서로 다른 역할로 사용합니다:
 **대시보드 확인 위치**:
 - Usage & Session Insights > Model Role Pattern (I/O Ratio) (막대 차트)
 
-### 9.3 캐시 최적화 기회
+### 10.3 캐시 최적화 기회
 
 | 모델 | 캐시 재사용률 | 캐시 읽기 토큰 비중 |
 |------|---------------|---------------------|
@@ -530,7 +590,7 @@ Claude Code는 두 모델을 서로 다른 역할로 사용합니다:
 - Cost Deep Analysis > Cache Reuse Rate by Model (게이지)
 - API Performance > Cache Effect on Performance (테이블)
 
-### 9.4 세션 복잡도 해석
+### 10.4 세션 복잡도 해석
 
 Usage & Session Insights의 Session Complexity 테이블에서 세션별 주요 지표를 확인할 수 있습니다:
 
@@ -546,7 +606,7 @@ Usage & Session Insights의 Session Complexity 테이블에서 세션별 주요 
 
 ---
 
-## 10. FAQ
+## 11. FAQ
 
 ### Q1. 대시보드에 데이터가 표시되지 않습니다 (No Data).
 
@@ -605,9 +665,9 @@ export OTEL_RESOURCE_ATTRIBUTES="team_id=your-team-id"
 
 ---
 
-## 11. 트러블슈팅
+## 12. 트러블슈팅
 
-### 11.1 "No Data" 표시
+### 12.1 "No Data" 표시
 
 | 증상 | 원인 | 해결 방법 |
 |------|------|----------|
@@ -617,7 +677,7 @@ export OTEL_RESOURCE_ATTRIBUTES="team_id=your-team-id"
 | 특정 패널만 No Data | 필터 조건에 해당 데이터 없음 | 필터를 "All"로 변경하여 확인 |
 | api_error 관련 패널 No Data | API 에러 이벤트가 아직 없음 | 정상 상황 (에러가 없으면 No Data가 맞음) |
 
-### 11.2 쿼리 느림
+### 12.2 쿼리 느림
 
 | 증상 | 원인 | 해결 방법 |
 |------|------|----------|
@@ -626,7 +686,7 @@ export OTEL_RESOURCE_ATTRIBUTES="team_id=your-team-id"
 | 특정 패널만 느림 | cross-event 조인 쿼리 | Session Complexity, Cost per Prompt 등 조인 쿼리는 원래 시간이 더 걸림 |
 | Athena 타임아웃 | 데이터량 과다 | Athena 워크그룹 타임아웃 설정 확인, 시간 범위 축소 |
 
-### 11.3 데이터 정확성
+### 12.3 데이터 정확성
 
 | 증상 | 원인 | 해결 방법 |
 |------|------|----------|
@@ -635,7 +695,7 @@ export OTEL_RESOURCE_ATTRIBUTES="team_id=your-team-id"
 | 캐시 토큰이 0 | 캐시 미활성화 | Claude API 캐시 설정 확인 |
 | 도구 결정 건수와 실행 건수 불일치 | tool_decision과 tool_result는 별도 이벤트 | 정상 (결정 후 실행 거부 가능) |
 
-### 11.4 Grafana 연결 문제
+### 12.4 Grafana 연결 문제
 
 | 증상 | 원인 | 해결 방법 |
 |------|------|----------|
@@ -643,7 +703,7 @@ export OTEL_RESOURCE_ATTRIBUTES="team_id=your-team-id"
 | "Access Denied" 에러 | S3 버킷 접근 권한 부족 | Grafana 서비스 역할에 S3 읽기 권한 추가 |
 | 쿼리 결과가 나오지 않음 | Athena 워크그룹 설정 | Athena 워크그룹의 결과 S3 위치가 설정되어 있는지 확인 |
 
-### 11.5 데이터 수집 문제
+### 12.5 데이터 수집 문제
 
 | 증상 | 원인 | 해결 방법 |
 |------|------|----------|
@@ -651,7 +711,7 @@ export OTEL_RESOURCE_ATTRIBUTES="team_id=your-team-id"
 | 이벤트 지연 | Firehose 버퍼링 | Firehose는 최대 5분(또는 5MB) 버퍼링 후 S3에 저장. 실시간이 아님 |
 | 특정 필드가 NULL | 클라이언트 설정 미비 | Claude Code에서 해당 필드를 전송하는지 확인 |
 
-### 11.6 메트릭 파이프라인 문제 (Real-Time Metrics 대시보드)
+### 12.6 메트릭 파이프라인 문제 (Real-Time Metrics 대시보드)
 
 | 증상 | 원인 | 해결 방법 |
 |------|------|----------|
@@ -673,14 +733,17 @@ export OTEL_RESOURCE_ATTRIBUTES="team_id=your-team-id"
 | Usage & Session Insights | `grafana/dashboards/usage-insights.json` | `athena` |
 | Tool Analytics | `grafana/dashboards/tool-analytics.json` | `athena` |
 | API Performance | `grafana/dashboards/api-performance.json` | `athena` |
+| Extensions & Agents | `grafana/dashboards/extensions-agents.json` | `amp` + `athena` |
+
+> **참고**: Extensions & Agents 대시보드의 Prometheus 패널은 데이터 소스 UID로 `amp`를, 그 외 Prometheus 대시보드는 `prometheus`를 사용합니다. 임포트 시 환경에 맞는 데이터 소스 UID가 존재하는지 확인하세요.
 
 대시보드를 Grafana에 임포트하려면: Grafana > Dashboards > Import > Upload JSON file에서 위 파일을 업로드하세요.
 
 **임포트 순서 참고**: 데이터 소스를 먼저 설정한 후 대시보드를 임포트하세요.
 1. Athena 데이터 소스 설정 (UID: `athena`)
-2. Prometheus (AMP) 데이터 소스 설정 (UID: `prometheus`)
-3. 대시보드 JSON 파일 6종 임포트
+2. Prometheus (AMP) 데이터 소스 설정 (UID: `prometheus` 및 Extensions & Agents용 `amp`)
+3. 대시보드 JSON 파일 7종 임포트
 
 ---
 
-> **참고**: 이 대시보드 구조는 `docs/dashboard-overlap-analysis.md` 및 `docs/dashboard-design-spec.md`의 분석 결과를 바탕으로 설계되었습니다. 해당 문서는 설계 산출물로 보관됩니다.
+> **참고**: 이 대시보드 구조의 초기 설계는 `dashboard-overlap-analysis.md` 및 `dashboard-design-spec.md`라는 분석 산출물을 바탕으로 했으나, 이 두 문서는 **과거 설계 산출물로 현재 리포지토리에는 포함되어 있지 않습니다**. 최신 스키마/대시보드 정의는 본 가이드와 `docs/otel-schema.md`, `docs/data-schema.md`를 정본으로 참고하세요.
