@@ -9,3 +9,7 @@ cdk.out
 cdk.out.deploy
 cdk.context.json
 .claude/
+
+# Python
+__pycache__/
+*.pyc

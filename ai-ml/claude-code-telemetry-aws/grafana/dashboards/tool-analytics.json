@@ -10,6 +10,7 @@
   "version": 1,
   "time": {"from": "now-7d", "to": "now"},
   "links": [
+    {"title": "Extensions & Agents", "url": "/d/claude-code-extensions", "type": "link", "icon": "apps", "tooltip": "Subagent/effort cost, MCP, plugins, skills"},
     {"title": "Overview", "url": "/d/claude-code-overview", "type": "link", "icon": "home", "tooltip": "Executive summary with Prometheus + Athena highlights"},
     {"title": "Real-Time Metrics (Prometheus)", "url": "/d/claude-code-realtime", "type": "link", "icon": "lightning", "tooltip": "Live code edit decisions, development activity rates"},
     {"title": "Cost Deep Analysis", "url": "/d/claude-code-cost", "type": "link"},

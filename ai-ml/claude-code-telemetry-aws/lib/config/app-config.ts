@@ -15,6 +15,13 @@ export interface AppConfig {
   certificateArn?: string;
   /** ADOT Collector container image version tag */
   adotCollectorVersion: string;
+  /**
+   * S3 bucket name (no s3:// prefix) used as the Athena query results output
+   * location by the Grafana Athena data source / workgroup. Grant the Grafana
+   * role read/write on it. If omitted, only the default
+   * `aws-athena-query-results-<account>-<region>` bucket is granted.
+   */
+  athenaResultsBucket?: string;
 }
 
 export const appConfig: AppConfig = {
@@ -29,6 +36,10 @@ export const appConfig: AppConfig = {
   collectorHttpPort: 4318,
   // certificateArn: 'arn:aws:acm:us-east-1:ACCOUNT:certificate/CERT-ID',
   adotCollectorVersion: 'v0.40.0',
+  // Grafana Athena data source / workgroup query results output bucket.
+  // Set this to the bucket your Athena workgroup writes results to. When omitted,
+  // only the default `aws-athena-query-results-<account>-<region>` bucket is granted.
+  // athenaResultsBucket: 'my-athena-query-results-bucket',
 };
 
 /**

@@ -112,7 +112,14 @@ export class DashboardNestedStack extends cdk.NestedStack {
           // Athena query results bucket (default location)
           `arn:aws:s3:::aws-athena-query-results-${this.account}-${config.region}`,
           `arn:aws:s3:::aws-athena-query-results-${this.account}-${config.region}/*`,
-          // Athena workgroup output location (uses default query results bucket above)
+          // Athena workgroup output location configured on the Grafana data source.
+          // Required so Athena can verify/write query results to this bucket.
+          ...(config.athenaResultsBucket
+            ? [
+                `arn:aws:s3:::${config.athenaResultsBucket}`,
+                `arn:aws:s3:::${config.athenaResultsBucket}/*`,
+              ]
+            : []),
         ],
       }),
     );
