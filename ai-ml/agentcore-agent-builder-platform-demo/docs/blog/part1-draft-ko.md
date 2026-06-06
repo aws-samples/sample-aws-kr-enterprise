@@ -108,7 +108,7 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 전체 코드는 [aws-samples GitHub](https://github.com/aws-samples/sample-aws-kr-enterprise)에서 확인할 수 있습니다. 클론한 뒤 `deploy-all.sh`를 실행하면 15분 안에 직접 에이전트를 조립하고 Playground에서 테스트해 볼 수 있습니다.
 
-이번 편이 보여준 것은 **현재의 빌딩블록으로 직접 조립한** 버전입니다. 카드 레지스트리도, 관측성 Harness도 플랫폼이 자체 구현했습니다. 다음 편에서는 AgentCore에 새로 추가된 **관리형 Agent Registry와 관리형 Harness**로 이 자체 구현 구성요소들을 어떻게 대체하고 단순화하는지, before/after로 살펴보겠습니다.
+이번 편이 보여준 것은 **현재의 빌딩블록으로 직접 조립한** 버전입니다. 카드 레지스트리도, 경계 강제도, 관측성도 플랫폼이 자체 구현했습니다. 다음 편에서는 먼저 이 자체 구현의 심장인 Agent Runtime 베이스 이미지를 코드로 해부한 뒤, AgentCore에 새로 추가된 **관리형 Registry·Policy·Harness·Observability/Evaluations**로 그 구성요소들을 어떻게 대체하고 단순화하는지 before/after로 살펴보겠습니다.
 
 ---
 
