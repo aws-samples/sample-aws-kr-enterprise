@@ -11,7 +11,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from tools import (logs_agent, metrics_agent, infrastructure_agent, knowledge_agent,
                     remediation_agent, query_reports, query_alarms)
 
-MODEL_ID = os.environ.get("MODEL_ID", "apac.anthropic.claude-sonnet-4-20250514-v1:0")
+MODEL_ID = os.environ.get("MODEL_ID", "global.anthropic.claude-sonnet-4-6")
 REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
 
 model = BedrockModel(model_id=MODEL_ID, region_name=REGION)

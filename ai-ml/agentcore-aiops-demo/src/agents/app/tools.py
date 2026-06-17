@@ -4,9 +4,15 @@ import json
 import os
 import boto3
 from strands import Agent, tool
+from strands.models.bedrock import BedrockModel
 
 REGION = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "ap-northeast-2"))
 KB_ID = os.environ.get("KNOWLEDGE_BASE_ID", "")
+
+# Shared model for all specialist agents. Without this, Agent() falls back to the
+# Strands SDK default model (Claude Sonnet 4.0) instead of the configured MODEL_ID.
+MODEL_ID = os.environ.get("MODEL_ID", "global.anthropic.claude-sonnet-4-6")
+model = BedrockModel(model_id=MODEL_ID, region_name=REGION)
 
 # Boto3 clients
 cw_logs = boto3.client("logs", region_name=REGION)
@@ -38,6 +44,7 @@ def logs_agent(query: str, reason: str = "") -> str:
     """
     try:
         agent = Agent(
+            model=model,
             system_prompt="""You are a Logs Agent. Investigate ONLY the specific resources and events described in the query.
 
 RULES:
@@ -74,6 +81,7 @@ def metrics_agent(query: str, reason: str = "") -> str:
     """
     try:
         agent = Agent(
+            model=model,
             system_prompt="""You are a Metrics Agent. Analyze ONLY the specific metrics described in the query.
 
 RULES:
@@ -104,6 +112,7 @@ def infrastructure_agent(query: str, reason: str = "") -> str:
     """
     try:
         agent = Agent(
+            model=model,
             system_prompt="""You are an Infrastructure Agent. Check ONLY the specific resources mentioned in the query.
 
 RULES:
@@ -137,6 +146,7 @@ def knowledge_agent(query: str, reason: str = "") -> str:
     """
     try:
         agent = Agent(
+            model=model,
             system_prompt="You are a Knowledge Agent. Search for relevant runbooks, past incidents, and system specs matching the specific issue described. Return concise summary (max 600 tokens).",
             tools=[retrieve_from_kb],
             callback_handler=None,
@@ -160,6 +170,7 @@ def remediation_agent(action_description: str, parameters: str) -> str:
     """
     try:
         agent = Agent(
+            model=model,
             system_prompt="You are a Remediation Agent. Execute ONLY the specific approved action described. Record before/after state. Return execution results.",
             tools=[reboot_instance, start_instance, stop_instance,
                    modify_security_group_ingress, modify_security_group_egress,
