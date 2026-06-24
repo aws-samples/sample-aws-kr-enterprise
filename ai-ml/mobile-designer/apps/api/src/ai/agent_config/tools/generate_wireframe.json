@@ -1,0 +1,19 @@
+{
+  "name": "generate_wireframe",
+  "description": "Generate wireframe-level UI structure from requirements analysis. Creates component hierarchy with stable IDs.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "requirements": {
+        "type": "object",
+        "description": "Stage 1 requirements analysis output"
+      },
+      "screens": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "List of screen names to generate wireframes for"
+      }
+    },
+    "required": ["requirements"]
+  }
+}

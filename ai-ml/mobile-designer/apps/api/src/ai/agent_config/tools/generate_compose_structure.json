@@ -1,0 +1,19 @@
+{
+  "name": "generate_compose_structure",
+  "description": "Determine Jetpack Compose project structure from finalized the design. Maps design components to Compose composables.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "design": {
+        "type": "object",
+        "description": "Stage 3 finalized the design"
+      },
+      "component_catalog": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Allowed Compose component types from shared catalog"
+      }
+    },
+    "required": ["design"]
+  }
+}

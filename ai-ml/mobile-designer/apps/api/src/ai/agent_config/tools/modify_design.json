@@ -1,0 +1,22 @@
+{
+  "name": "modify_design",
+  "description": "Modify an existing design based on user's natural language instruction. Can target a specific component or the entire screen.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "current_design": {
+        "type": "object",
+        "description": "Current design state to modify"
+      },
+      "command": {
+        "type": "string",
+        "description": "User's modification instruction in natural language"
+      },
+      "selected_component_id": {
+        "type": "string",
+        "description": "Optional: specific component ID to target for modification"
+      }
+    },
+    "required": ["current_design", "command"]
+  }
+}

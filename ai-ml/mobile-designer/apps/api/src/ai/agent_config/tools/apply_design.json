@@ -1,0 +1,18 @@
+{
+  "name": "apply_design",
+  "description": "Apply the mobile design system to wireframe components. Adds typography, colors, spacing, and interaction patterns.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "wireframe": {
+        "type": "object",
+        "description": "Stage 2 wireframe output to apply the design to"
+      },
+      "design_preferences": {
+        "type": "object",
+        "description": "Optional user preferences for colors, style"
+      }
+    },
+    "required": ["wireframe"]
+  }
+}

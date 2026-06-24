@@ -1,0 +1,360 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  MDesigner - Compute Stack
+  ECS Fargate cluster, task definitions, services, ALB routing, and auto-scaling.
+
+Parameters:
+  Environment:
+    Type: String
+  ApiImageUri:
+    Type: String
+  WebImageUri:
+    Type: String
+  TablePrefix:
+    Type: String
+  VpcId:
+    Type: String
+  PrivateSubnet1:
+    Type: String
+  PrivateSubnet2:
+    Type: String
+  EcsSecurityGroup:
+    Type: String
+  AlbHttpListenerArn:
+    Type: String
+  AlbDnsName:
+    Type: String
+  S3BucketName:
+    Type: String
+  TaskExecutionRoleArn:
+    Type: String
+  TaskRoleArn:
+    Type: String
+  JwtSecretArn:
+    Type: String
+  CorsOrigins:
+    Type: String
+
+Resources:
+  # --- ECS Cluster ---
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${TablePrefix}-${Environment}"
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --- CloudWatch Log Groups ---
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${TablePrefix}-${Environment}/api"
+      RetentionInDays: 90
+
+  WebLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${TablePrefix}-${Environment}/web"
+      RetentionInDays: 90
+
+  # --- Target Groups ---
+  ApiTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${TablePrefix}-${Environment}-api"
+      Port: 8000
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: "30"
+
+  WebTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${TablePrefix}-${Environment}-web"
+      Port: 3000
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200-399"
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: "30"
+
+  # --- ALB Listener Rules ---
+  ApiListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref AlbHttpListenerArn
+      Priority: 10
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - "/api/*"
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ApiTargetGroup
+
+  WebListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref AlbHttpListenerArn
+      Priority: 50
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - "/*"
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref WebTargetGroup
+
+  # --- API Task Definition ---
+  ApiTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${TablePrefix}-${Environment}-api"
+      Cpu: "1024"
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
+      ContainerDefinitions:
+        - Name: api
+          Image: !Ref ApiImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+          Environment:
+            - Name: MDESIGNER_ENVIRONMENT
+              Value: !Ref Environment
+            - Name: MDESIGNER_TABLE_PREFIX
+              Value: !Ref TablePrefix
+            - Name: MDESIGNER_S3_BUCKET_NAME
+              Value: !Ref S3BucketName
+            - Name: MDESIGNER_AWS_REGION
+              Value: !Ref "AWS::Region"
+            - Name: MDESIGNER_AWS_BEDROCK_REGION
+              Value: us-west-2
+            - Name: MDESIGNER_JWT_SECRET_SOURCE
+              Value: secretsmanager
+            - Name: MDESIGNER_JWT_SECRET_NAME
+              Value: !Ref JwtSecretArn
+            - Name: MDESIGNER_CORS_ORIGINS
+              Value: !Ref CorsOrigins
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ApiLogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: api
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+
+  # --- Web Task Definition ---
+  WebTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${TablePrefix}-${Environment}-web"
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
+      ContainerDefinitions:
+        - Name: web
+          Image: !Ref WebImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3000
+              Protocol: tcp
+          Environment:
+            - Name: PORT
+              Value: "3000"
+            - Name: HOSTNAME
+              Value: "0.0.0.0"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref WebLogGroup
+              awslogs-region: !Ref "AWS::Region"
+              awslogs-stream-prefix: web
+
+  # --- API Service ---
+  ApiService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - ApiListenerRule
+    Properties:
+      ServiceName: !Sub "${TablePrefix}-${Environment}-api"
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref ApiTaskDefinition
+      # Two tasks across AZs for high availability — no single point of failure.
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+          SecurityGroups:
+            - !Ref EcsSecurityGroup
+      LoadBalancers:
+        - ContainerName: api
+          ContainerPort: 8000
+          TargetGroupArn: !Ref ApiTargetGroup
+      DeploymentConfiguration:
+        # Keep at least half the tasks serving during a deploy (no full outage),
+        # and auto-rollback if the new revision fails to stabilize.
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+
+  # --- Web Service ---
+  WebService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - WebListenerRule
+    Properties:
+      ServiceName: !Sub "${TablePrefix}-${Environment}-web"
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref WebTaskDefinition
+      # Two tasks across AZs for high availability.
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+          SecurityGroups:
+            - !Ref EcsSecurityGroup
+      LoadBalancers:
+        - ContainerName: web
+          ContainerPort: 3000
+          TargetGroupArn: !Ref WebTargetGroup
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+
+  # --- Auto Scaling ---
+  ApiAutoScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: 2
+      MaxCapacity: 4
+      ResourceId: !Sub "service/${EcsCluster}/${ApiService.Name}"
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService"
+
+  ApiCpuScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub "${TablePrefix}-${Environment}-api-cpu-scaling"
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ApiAutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 70.0
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  WebAutoScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: 2
+      MaxCapacity: 4
+      ResourceId: !Sub "service/${EcsCluster}/${WebService.Name}"
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService"
+
+  WebCpuScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub "${TablePrefix}-${Environment}-web-cpu-scaling"
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref WebAutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 70.0
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+Outputs:
+  EcsClusterName:
+    Description: ECS Cluster name
+    Value: !Ref EcsCluster
+
+  EcsClusterArn:
+    Description: ECS Cluster ARN
+    Value: !GetAtt EcsCluster.Arn
+
+  ApiServiceName:
+    Description: API Service name
+    Value: !GetAtt ApiService.Name
+
+  WebServiceName:
+    Description: Web Service name
+    Value: !GetAtt WebService.Name
+
+  ApiTargetGroupArn:
+    Description: API Target Group ARN
+    Value: !Ref ApiTargetGroup
+
+  WebTargetGroupArn:
+    Description: Web Target Group ARN
+    Value: !Ref WebTargetGroup
+
+  AlbDnsName:
+    Description: ALB DNS Name
+    Value: !Ref AlbDnsName
+
+  ApiEndpoint:
+    Description: API endpoint
+    Value: !Sub "http://${AlbDnsName}/api"
+
+  WebEndpoint:
+    Description: Web endpoint
+    Value: !Sub "http://${AlbDnsName}"

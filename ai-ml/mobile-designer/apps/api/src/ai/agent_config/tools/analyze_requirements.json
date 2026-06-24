@@ -1,0 +1,19 @@
+{
+  "name": "analyze_requirements",
+  "description": "Analyze user's natural language input and attached files to extract app requirements, screen structure, and user flows.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string",
+        "description": "User's natural language description of the app"
+      },
+      "file_contents": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Parsed text content from uploaded files"
+      }
+    },
+    "required": ["command"]
+  }
+}

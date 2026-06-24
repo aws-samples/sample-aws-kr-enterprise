@@ -1,0 +1,219 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  MDesigner - Root Stack
+  Deploys the complete mobile designer application infrastructure using nested stacks.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - staging
+    Description: Deployment environment
+
+  AdminEmail:
+    Type: String
+    Default: admin@mdesigner.dev
+    Description: Admin user email for initial setup
+
+  AdminInitialPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: Admin initial password (must change on first login)
+
+  ApiImageUri:
+    Type: String
+    Description: ECR URI for API container image
+
+  WebImageUri:
+    Type: String
+    Description: ECR URI for Web container image
+
+  VpcCidr:
+    Type: String
+    Default: "10.0.0.0/16"
+    Description: CIDR block for the VPC
+
+  DomainName:
+    Type: String
+    Default: ""
+    Description: Optional custom domain name
+
+  TablePrefix:
+    Type: String
+    Default: MDesigner
+    Description: Prefix for DynamoDB table names
+
+  TemplatesBucketName:
+    Type: String
+    Description: S3 bucket containing nested stack templates
+
+  TemplatesPrefix:
+    Type: String
+    Default: infrastructure
+    Description: S3 key prefix for nested stack templates
+
+  CloudFrontPrefixListId:
+    Type: String
+    Default: pl-22a6434b
+    Description: AWS managed prefix list ID for CloudFront (varies by region)
+
+Conditions:
+  HasDomain: !Not [!Equals [!Ref DomainName, ""]]
+
+Resources:
+  NetworkingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucketName}.s3.amazonaws.com/${TemplatesPrefix}/networking.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        VpcCidr: !Ref VpcCidr
+        StackName: !Ref "AWS::StackName"
+        CloudFrontPrefixListId: !Ref CloudFrontPrefixListId
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: MDesigner
+
+  StorageStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucketName}.s3.amazonaws.com/${TemplatesPrefix}/storage.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        TablePrefix: !Ref TablePrefix
+        StackName: !Ref "AWS::StackName"
+        DomainName: !Ref DomainName
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: MDesigner
+
+  SecurityStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucketName}.s3.amazonaws.com/${TemplatesPrefix}/security.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        TablePrefix: !Ref TablePrefix
+        S3BucketArn: !GetAtt StorageStack.Outputs.FilesBucketArn
+        UsersTableArn: !GetAtt StorageStack.Outputs.UsersTableArn
+        TeamsTableArn: !GetAtt StorageStack.Outputs.TeamsTableArn
+        PromptsTableArn: !GetAtt StorageStack.Outputs.PromptsTableArn
+        SystemConfigTableArn: !GetAtt StorageStack.Outputs.SystemConfigTableArn
+        AllTablesArnPrefix: !GetAtt StorageStack.Outputs.AllTablesArnPrefix
+        SesSenderEmail: !Ref AdminEmail
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: MDesigner
+
+  ComputeStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - NetworkingStack
+      - StorageStack
+      - SecurityStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucketName}.s3.amazonaws.com/${TemplatesPrefix}/compute.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ApiImageUri: !Ref ApiImageUri
+        WebImageUri: !Ref WebImageUri
+        TablePrefix: !Ref TablePrefix
+        VpcId: !GetAtt NetworkingStack.Outputs.VpcId
+        PrivateSubnet1: !GetAtt NetworkingStack.Outputs.PrivateSubnet1
+        PrivateSubnet2: !GetAtt NetworkingStack.Outputs.PrivateSubnet2
+        EcsSecurityGroup: !GetAtt NetworkingStack.Outputs.EcsSecurityGroup
+        AlbHttpListenerArn: !GetAtt NetworkingStack.Outputs.AlbHttpListenerArn
+        AlbDnsName: !GetAtt NetworkingStack.Outputs.AlbDnsName
+        S3BucketName: !GetAtt StorageStack.Outputs.FilesBucketName
+        TaskExecutionRoleArn: !GetAtt SecurityStack.Outputs.TaskExecutionRoleArn
+        TaskRoleArn: !GetAtt SecurityStack.Outputs.TaskRoleArn
+        JwtSecretArn: !GetAtt SecurityStack.Outputs.JwtSecretArn
+        # When a custom domain is set, allow that origin. Otherwise the web and API
+        # are served from the same CloudFront origin, so no cross-origin access is
+        # needed — default to an empty list rather than a wildcard.
+        CorsOrigins: !If
+          - HasDomain
+          - !Sub '["https://${DomainName}"]'
+          - '[]'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: MDesigner
+
+  BootstrapStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - StorageStack
+      - SecurityStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucketName}.s3.amazonaws.com/${TemplatesPrefix}/bootstrap.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        AdminEmail: !Ref AdminEmail
+        AdminInitialPassword: !Ref AdminInitialPassword
+        TablePrefix: !Ref TablePrefix
+        UsersTableName: !GetAtt StorageStack.Outputs.UsersTableName
+        TeamsTableName: !GetAtt StorageStack.Outputs.TeamsTableName
+        PromptsTableName: !GetAtt StorageStack.Outputs.PromptsTableName
+        SystemConfigTableName: !GetAtt StorageStack.Outputs.SystemConfigTableName
+        S3BucketName: !GetAtt StorageStack.Outputs.FilesBucketName
+        ArtifactsBucketName: !Ref TemplatesBucketName
+        BootstrapLambdaRoleArn: !GetAtt SecurityStack.Outputs.BootstrapLambdaRoleArn
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: MDesigner
+
+  CdnStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - NetworkingStack
+      - ComputeStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucketName}.s3.amazonaws.com/${TemplatesPrefix}/cdn.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        StackName: !Ref "AWS::StackName"
+        AlbDnsName: !GetAtt NetworkingStack.Outputs.AlbDnsName
+        DomainName: !Ref DomainName
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: MDesigner
+
+Outputs:
+  CloudFrontUrl:
+    Description: CloudFront URL (use this to access the application)
+    Value: !GetAtt CdnStack.Outputs.CloudFrontUrl
+
+  CloudFrontDomainName:
+    Description: CloudFront distribution domain name
+    Value: !GetAtt CdnStack.Outputs.DistributionDomainName
+
+  AlbDnsName:
+    Description: Application Load Balancer DNS name (internal, CloudFront only)
+    Value: !GetAtt NetworkingStack.Outputs.AlbDnsName
+
+  FilesBucketName:
+    Description: S3 bucket for file storage
+    Value: !GetAtt StorageStack.Outputs.FilesBucketName
+
+  JwtSecretArn:
+    Description: ARN of the JWT signing secret
+    Value: !GetAtt SecurityStack.Outputs.JwtSecretArn
+
+  EcsClusterName:
+    Description: ECS cluster name
+    Value: !GetAtt ComputeStack.Outputs.EcsClusterName

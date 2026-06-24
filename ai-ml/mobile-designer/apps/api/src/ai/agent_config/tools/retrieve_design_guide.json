@@ -1,0 +1,19 @@
+{
+  "name": "retrieve_design_guide",
+  "description": "Retrieve relevant sections from the Design Guide PDF. Use this to look up specific design guidelines, patterns, or specifications.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Search query for the design guide (e.g., 'typography rules', 'navigation patterns', 'color system')"
+      },
+      "section": {
+        "type": "string",
+        "enum": ["focus", "natural", "essential", "typography", "color", "spacing", "navigation", "interaction", "extend_title", "view_interaction"],
+        "description": "Optional: specific section to retrieve"
+      }
+    },
+    "required": ["query"]
+  }
+}

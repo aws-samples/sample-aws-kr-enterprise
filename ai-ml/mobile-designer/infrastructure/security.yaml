@@ -1,0 +1,248 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  MDesigner - Security Stack
+  IAM roles (Task Execution, Task, Bootstrap Lambda), Secrets Manager for JWT signing key.
+
+Parameters:
+  Environment:
+    Type: String
+  TablePrefix:
+    Type: String
+  S3BucketArn:
+    Type: String
+  UsersTableArn:
+    Type: String
+  TeamsTableArn:
+    Type: String
+  PromptsTableArn:
+    Type: String
+  SystemConfigTableArn:
+    Type: String
+  AllTablesArnPrefix:
+    Type: String
+  SesSenderEmail:
+    Type: String
+    Default: ""
+    Description: Verified SES sender address; scopes ses:SendEmail to this identity.
+
+Conditions:
+  HasSesSender: !Not [!Equals [!Ref SesSenderEmail, ""]]
+
+Resources:
+  # --- Secrets Manager: JWT Signing Key ---
+  JwtSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${TablePrefix}/jwt-keys"
+      Description: JWT signing key for MDesigner authentication
+      GenerateSecretString:
+        SecretStringTemplate: "{}"
+        GenerateStringKey: secret_key
+        PasswordLength: 64
+        ExcludePunctuation: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: MDesigner
+
+  # --- ECS Task Execution Role ---
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${TablePrefix}-${Environment}-task-execution"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsManagerRead
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref JwtSecret
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/${TablePrefix}*"
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --- ECS Task Role ---
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${TablePrefix}-${Environment}-task"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !Ref AllTablesArnPrefix
+                  - !Sub "${AllTablesArnPrefix}/index/*"
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Ref S3BucketArn
+                  - !Sub "${S3BucketArn}/*"
+        - PolicyName: SecretsManagerRead
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref JwtSecret
+        - PolicyName: BedrockInvoke
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Model/agent invocation scoped to foundation models and inference
+              # profiles (covers cross-region inference profile ARNs the app uses).
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                  - bedrock:InvokeAgent
+                  - bedrock:Converse
+                  - bedrock:ConverseStream
+                Resource:
+                  - "arn:aws:bedrock:*::foundation-model/*"
+                  - !Sub "arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/*"
+                  - !Sub "arn:aws:bedrock:*:${AWS::AccountId}:agent/*"
+                  - !Sub "arn:aws:bedrock:*:${AWS::AccountId}:agent-alias/*"
+              # List operations do not support resource-level scoping in IAM.
+              - Effect: Allow
+                Action:
+                  - bedrock:ListFoundationModels
+                  - bedrock:ListInferenceProfiles
+                Resource: "*"
+        - PolicyName: SESAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                # Restrict to the verified sender identity when configured.
+                Resource: !If
+                  - HasSesSender
+                  - !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesSenderEmail}"
+                  - "*"
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --- Bootstrap Lambda Execution Role ---
+  BootstrapLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${TablePrefix}-${Environment}-bootstrap-lambda"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBWrite
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !Ref UsersTableArn
+                  - !Sub "${UsersTableArn}/index/*"
+                  - !Ref TeamsTableArn
+                  - !Sub "${TeamsTableArn}/index/*"
+                  - !Ref PromptsTableArn
+                  - !Sub "${PromptsTableArn}/index/*"
+                  - !Ref SystemConfigTableArn
+                  - !Sub "${SystemConfigTableArn}/index/*"
+        - PolicyName: S3Write
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource:
+                  - !Sub "${S3BucketArn}/*"
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  TaskExecutionRoleArn:
+    Description: ECS Task Execution Role ARN
+    Value: !GetAtt TaskExecutionRole.Arn
+
+  TaskRoleArn:
+    Description: ECS Task Role ARN
+    Value: !GetAtt TaskRole.Arn
+
+  BootstrapLambdaRoleArn:
+    Description: Bootstrap Lambda Execution Role ARN
+    Value: !GetAtt BootstrapLambdaRole.Arn
+
+  JwtSecretArn:
+    Description: JWT Secret ARN in Secrets Manager
+    Value: !Ref JwtSecret
+
+  JwtSecretName:
+    Description: JWT Secret name in Secrets Manager
+    Value: !Sub "${TablePrefix}/jwt-keys"

@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  MDesigner - CDN Stack
+  CloudFront distribution in front of ALB with custom header for origin verification.
+
+Parameters:
+  Environment:
+    Type: String
+  StackName:
+    Type: String
+  AlbDnsName:
+    Type: String
+    Description: ALB DNS name as CloudFront origin
+  DomainName:
+    Type: String
+    Default: ""
+
+Conditions:
+  HasDomain: !Not [!Equals [!Ref DomainName, ""]]
+
+Resources:
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${StackName} - Mobile Designer"
+        DefaultRootObject: ""
+        HttpVersion: http2and3
+        PriceClass: PriceClass_200
+        Origins:
+          - Id: alb-origin
+            DomainName: !Ref AlbDnsName
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+              OriginReadTimeout: 120
+              OriginKeepaliveTimeout: 60
+        DefaultCacheBehavior:
+          TargetOriginId: alb-origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3  # AllViewer
+          Compress: true
+        CacheBehaviors:
+          - PathPattern: "/api/ai/chat/stream"
+            TargetOriginId: alb-origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
+            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3  # AllViewer
+            Compress: false
+          - PathPattern: "/api/*"
+            TargetOriginId: alb-origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
+            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3  # AllViewer
+            Compress: true
+          - PathPattern: "/_next/static/*"
+            TargetOriginId: alb-origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+            Compress: true
+        Aliases: !If
+          - HasDomain
+          - [!Ref DomainName]
+          - !Ref "AWS::NoValue"
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  DistributionId:
+    Description: CloudFront Distribution ID
+    Value: !Ref Distribution
+
+  DistributionDomainName:
+    Description: CloudFront domain name
+    Value: !GetAtt Distribution.DomainName
+
+  CloudFrontUrl:
+    Description: CloudFront URL
+    Value: !Sub "https://${Distribution.DomainName}"

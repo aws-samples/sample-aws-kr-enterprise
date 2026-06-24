@@ -1,0 +1,445 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  MDesigner - Storage Stack
+  DynamoDB tables (10) and S3 bucket for file storage.
+
+Parameters:
+  Environment:
+    Type: String
+  TablePrefix:
+    Type: String
+    Default: MDesigner
+  StackName:
+    Type: String
+  DomainName:
+    Type: String
+    Default: ""
+    Description: Optional custom domain; restricts S3 upload CORS to this origin when set.
+
+Conditions:
+  HasDomain: !Not [!Equals [!Ref DomainName, ""]]
+  IsProduction: !Equals [!Ref Environment, production]
+
+Resources:
+  # --- S3 Bucket ---
+  FilesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${StackName}-files-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      # Browser presigned PUT uploads require CORS. Uploads are already protected by
+      # the signed URL (signature + expiry + content-length), but we still restrict
+      # the origin to the custom domain when one is configured. Without a custom
+      # domain the CloudFront domain is not known at storage-stack creation time, so
+      # the rule falls back to "*" — acceptable because presigned URLs are the only
+      # write path and they are short-lived and unguessable.
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET, PUT]
+            AllowedOrigins: !If
+              - HasDomain
+              - [!Sub "https://${DomainName}"]
+              - ["*"]
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+          # Versioning is enabled; expire superseded versions so storage doesn't grow
+          # unbounded.
+          - Id: ExpireNoncurrentVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --- DynamoDB Tables ---
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-Users"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      GlobalSecondaryIndexes:
+        - IndexName: GSI-Email
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      DeletionProtectionEnabled: !If [IsProduction, true, false]
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  TeamsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-Teams"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: teamId
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: teamId
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      GlobalSecondaryIndexes:
+        - IndexName: GSI-UserTeams
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: teamId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      DeletionProtectionEnabled: !If [IsProduction, true, false]
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  ProjectsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-Projects"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: teamId
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: teamId
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      DeletionProtectionEnabled: !If [IsProduction, true, false]
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  VersionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-Versions"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: projectId
+          KeyType: HASH
+        - AttributeName: versionId
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: projectId
+          AttributeType: S
+        - AttributeName: versionId
+          AttributeType: S
+        - AttributeName: stageVersionPK
+          AttributeType: S
+      GlobalSecondaryIndexes:
+        - IndexName: GSI-StageVersions
+          KeySchema:
+            - AttributeName: stageVersionPK
+              KeyType: HASH
+            - AttributeName: versionId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      DeletionProtectionEnabled: !If [IsProduction, true, false]
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  FilesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-Files"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: projectId
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: projectId
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      DeletionProtectionEnabled: !If [IsProduction, true, false]
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  CommentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-Comments"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: commentId
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: commentId
+          AttributeType: S
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      DeletionProtectionEnabled: !If [IsProduction, true, false]
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  ShareLinksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-ShareLinks"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: shareToken
+          KeyType: HASH
+      AttributeDefinitions:
+        - AttributeName: shareToken
+          AttributeType: S
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      DeletionProtectionEnabled: !If [IsProduction, true, false]
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  RefreshTokensTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-RefreshTokens"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: tokenId
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: tokenId
+          AttributeType: S
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      DeletionProtectionEnabled: !If [IsProduction, true, false]
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  PromptsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-Prompts"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: promptSlot
+          KeyType: HASH
+        - AttributeName: version
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: promptSlot
+          AttributeType: S
+        - AttributeName: version
+          AttributeType: S
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      DeletionProtectionEnabled: !If [IsProduction, true, false]
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  SystemConfigTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-SystemConfig"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      DeletionProtectionEnabled: !If [IsProduction, true, false]
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # AI generate/modify/handoff task state, shared across API instances so progress
+  # polling survives load-balancing and restarts. Ephemeral — TTL auto-expires rows.
+  AITasksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-AITasks"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: taskId
+          KeyType: HASH
+      AttributeDefinitions:
+        - AttributeName: taskId
+          AttributeType: S
+        - AttributeName: projectStage
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      GlobalSecondaryIndexes:
+        - IndexName: GSI-ProjectStage
+          KeySchema:
+            - AttributeName: projectStage
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  FilesBucketName:
+    Description: S3 bucket name for file storage
+    Value: !Ref FilesBucket
+
+  FilesBucketArn:
+    Description: S3 bucket ARN
+    Value: !GetAtt FilesBucket.Arn
+
+  UsersTableName:
+    Description: Users table name
+    Value: !Ref UsersTable
+
+  UsersTableArn:
+    Description: Users table ARN
+    Value: !GetAtt UsersTable.Arn
+
+  TeamsTableName:
+    Description: Teams table name
+    Value: !Ref TeamsTable
+
+  TeamsTableArn:
+    Description: Teams table ARN
+    Value: !GetAtt TeamsTable.Arn
+
+  ProjectsTableName:
+    Description: Projects table name
+    Value: !Ref ProjectsTable
+
+  ProjectsTableArn:
+    Description: Projects table ARN
+    Value: !GetAtt ProjectsTable.Arn
+
+  VersionsTableName:
+    Description: Versions table name
+    Value: !Ref VersionsTable
+
+  VersionsTableArn:
+    Description: Versions table ARN
+    Value: !GetAtt VersionsTable.Arn
+
+  FilesTableName:
+    Description: Files table name
+    Value: !Ref FilesTable
+
+  FilesTableArn:
+    Description: Files table ARN
+    Value: !GetAtt FilesTable.Arn
+
+  CommentsTableName:
+    Description: Comments table name
+    Value: !Ref CommentsTable
+
+  CommentsTableArn:
+    Description: Comments table ARN
+    Value: !GetAtt CommentsTable.Arn
+
+  ShareLinksTableName:
+    Description: ShareLinks table name
+    Value: !Ref ShareLinksTable
+
+  ShareLinksTableArn:
+    Description: ShareLinks table ARN
+    Value: !GetAtt ShareLinksTable.Arn
+
+  RefreshTokensTableName:
+    Description: RefreshTokens table name
+    Value: !Ref RefreshTokensTable
+
+  RefreshTokensTableArn:
+    Description: RefreshTokens table ARN
+    Value: !GetAtt RefreshTokensTable.Arn
+
+  PromptsTableName:
+    Description: Prompts table name
+    Value: !Ref PromptsTable
+
+  PromptsTableArn:
+    Description: Prompts table ARN
+    Value: !GetAtt PromptsTable.Arn
+
+  SystemConfigTableName:
+    Description: SystemConfig table name
+    Value: !Ref SystemConfigTable
+
+  SystemConfigTableArn:
+    Description: SystemConfig table ARN
+    Value: !GetAtt SystemConfigTable.Arn
+
+  AllTablesArnPrefix:
+    Description: ARN prefix for all tables (used for wildcard IAM policies)
+    Value: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TablePrefix}-*"

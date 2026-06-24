@@ -1,0 +1,28 @@
+[run]
+source = src
+omit =
+    src/*/router.py
+    src/main.py
+    src/common/db/client.py
+    src/common/s3/client.py
+    src/common/middleware.py
+    src/common/dependencies.py
+    src/auth/dependencies.py
+    src/auth/email.py
+    src/ai/orchestrator.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__
+    pass
+omit =
+    src/*/router.py
+    src/main.py
+    src/common/db/client.py
+    src/common/s3/client.py
+    src/common/middleware.py
+    src/common/dependencies.py
+    src/auth/dependencies.py
+    src/auth/email.py
+    src/ai/orchestrator.py

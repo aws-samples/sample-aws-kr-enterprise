@@ -1,0 +1,42 @@
+[
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "production"
+  },
+  {
+    "ParameterKey": "AdminEmail",
+    "ParameterValue": "admin@mdesigner.dev"
+  },
+  {
+    "ParameterKey": "AdminInitialPassword",
+    "ParameterValue": "CHANGE_ME_Secure123!"
+  },
+  {
+    "ParameterKey": "ApiImageUri",
+    "ParameterValue": "123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/mdesigner-api:latest"
+  },
+  {
+    "ParameterKey": "WebImageUri",
+    "ParameterValue": "123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/mdesigner-web:latest"
+  },
+  {
+    "ParameterKey": "VpcCidr",
+    "ParameterValue": "10.0.0.0/16"
+  },
+  {
+    "ParameterKey": "DomainName",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "TablePrefix",
+    "ParameterValue": "MDesigner"
+  },
+  {
+    "ParameterKey": "TemplatesBucketName",
+    "ParameterValue": "mdesigner-cfn-templates-123456789012"
+  },
+  {
+    "ParameterKey": "TemplatesPrefix",
+    "ParameterValue": "infrastructure"
+  }
+]

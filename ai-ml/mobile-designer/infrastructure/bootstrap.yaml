@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  MDesigner - Bootstrap Stack
+  Lambda custom resource that creates admin user and seeds prompts on stack creation.
+
+Parameters:
+  Environment:
+    Type: String
+  AdminEmail:
+    Type: String
+  AdminInitialPassword:
+    Type: String
+    NoEcho: true
+  TablePrefix:
+    Type: String
+  UsersTableName:
+    Type: String
+  TeamsTableName:
+    Type: String
+  PromptsTableName:
+    Type: String
+  SystemConfigTableName:
+    Type: String
+  S3BucketName:
+    Type: String
+    Description: Application files bucket (for prompt content storage)
+  ArtifactsBucketName:
+    Type: String
+    Description: S3 bucket containing Lambda code and layer artifacts
+  BootstrapLambdaRoleArn:
+    Type: String
+
+Resources:
+  # --- Bootstrap Lambda Layer (bcrypt) ---
+  BcryptLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub "${TablePrefix}-${Environment}-bcrypt"
+      Description: bcrypt library for password hashing
+      CompatibleRuntimes:
+        - python3.12
+      Content:
+        S3Bucket: !Ref ArtifactsBucketName
+        S3Key: bootstrap/bcrypt-layer.zip
+
+  # --- Bootstrap Lambda Function ---
+  BootstrapFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${TablePrefix}-${Environment}-bootstrap"
+      Description: Creates admin user and seeds initial data on stack creation
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !Ref BootstrapLambdaRoleArn
+      Timeout: 120
+      MemorySize: 256
+      Layers:
+        - !Ref BcryptLayer
+      Environment:
+        Variables:
+          USERS_TABLE: !Ref UsersTableName
+          TEAMS_TABLE: !Ref TeamsTableName
+          PROMPTS_TABLE: !Ref PromptsTableName
+          SYSTEM_CONFIG_TABLE: !Ref SystemConfigTableName
+          S3_BUCKET: !Ref S3BucketName
+          TABLE_PREFIX: !Ref TablePrefix
+      Code:
+        S3Bucket: !Ref ArtifactsBucketName
+        S3Key: bootstrap/lambda.zip
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # --- Custom Resource ---
+  BootstrapCustomResource:
+    Type: Custom::Bootstrap
+    Properties:
+      ServiceToken: !GetAtt BootstrapFunction.Arn
+      AdminEmail: !Ref AdminEmail
+      AdminPassword: !Ref AdminInitialPassword
+      Timestamp: !Ref "AWS::StackName"
+
+Outputs:
+  BootstrapFunctionArn:
+    Description: Bootstrap Lambda ARN
+    Value: !GetAtt BootstrapFunction.Arn
+
+  BootstrapStatus:
+    Description: Bootstrap execution status
+    Value: !GetAtt BootstrapCustomResource.Status

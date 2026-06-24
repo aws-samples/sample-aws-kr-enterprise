@@ -1,0 +1,42 @@
+node_modules/
+dist/
+.next/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.kiro/
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Turbo
+.turbo/
+
+# Test output
+test-results/
+playwright-report/
+
+# Android / Gradle build artifacts (e.g. handoff-example generated project)
+.gradle/
+build/
+local.properties
+*.iml
