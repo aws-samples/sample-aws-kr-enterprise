@@ -52,6 +52,7 @@ hands-off.md
 .claude/
 .playwright-mcp/
 docs/superpowers/
+docs/blog/
 
 # draw.io
 *.drawio
