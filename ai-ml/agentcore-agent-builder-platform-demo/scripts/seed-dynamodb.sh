@@ -8,6 +8,11 @@ if [ -z "${AWS_REGION:-}" ]; then
     exit 1
 fi
 REGION="$AWS_REGION"
+
+# Resolve project root so prompt files load regardless of the caller's cwd.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
 TABLE="${DYNAMODB_TABLE:-${PROJECT_PREFIX}-platform}"
 INC_TABLE="${INCIDENTS_TABLE:-${PROJECT_PREFIX}-incidents}"
 
