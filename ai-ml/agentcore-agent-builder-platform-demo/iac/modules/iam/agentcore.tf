@@ -68,10 +68,16 @@ resource "aws_iam_role_policy" "agentcore_runtime" {
         ]
       },
       {
-        Sid      = "BedrockAgentCore"
-        Effect   = "Allow"
-        Action   = "bedrock-agentcore:*"
-        Resource = "*"
+        Sid    = "BedrockAgentCore"
+        Effect = "Allow"
+        Action = [
+          "bedrock-agentcore:InvokeAgentRuntime",
+          "bedrock-agentcore:GetAgentRuntime"
+        ]
+        Resource = [
+          "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:runtime/*",
+          "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:runtime-endpoint/*"
+        ]
       },
       {
         Sid    = "ECRPull"

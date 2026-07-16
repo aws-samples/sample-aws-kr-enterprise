@@ -64,10 +64,21 @@ resource "aws_iam_role_policy" "platform_api_task" {
         ]
       },
       {
-        Sid      = "BedrockAgentCoreControl"
-        Effect   = "Allow"
-        Action   = "bedrock-agentcore:*"
-        Resource = "*"
+        Sid    = "BedrockAgentCoreControl"
+        Effect = "Allow"
+        Action = [
+          "bedrock-agentcore:CreateAgentRuntime",
+          "bedrock-agentcore:CreateAgentRuntimeEndpoint",
+          "bedrock-agentcore:GetAgentRuntime",
+          "bedrock-agentcore:GetAgentRuntimeEndpoint",
+          "bedrock-agentcore:ListAgentRuntimes",
+          "bedrock-agentcore:DeleteAgentRuntime",
+          "bedrock-agentcore:InvokeAgentRuntime"
+        ]
+        Resource = [
+          "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:runtime/*",
+          "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:runtime-endpoint/*"
+        ]
       },
       {
         Sid    = "CloudWatchLogs"
