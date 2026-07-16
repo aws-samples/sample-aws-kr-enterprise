@@ -18,6 +18,39 @@ xray = boto3.client("xray", region_name=REGION)
 logs = boto3.client("logs", region_name=REGION)
 cw = boto3.client("cloudwatch", region_name=REGION)
 
+# OTel spans are written to this log group by AgentCore only after agents emit
+# traces. Until the first invocation it does not exist, which is a normal empty
+# state — callers should get empty results, not a 500.
+SPANS_LOG_GROUP = "aws/spans"
+
+
+async def _run_logs_insights_query(query: str, start_time: int, end_time: int) -> dict:
+    """Run a CloudWatch Logs Insights query against the spans log group.
+
+    Returns the completed query result, or an empty result set if the spans
+    log group does not exist yet (no traces emitted).
+    """
+    try:
+        query_res = await asyncio.to_thread(
+            logs.start_query,
+            logGroupName=SPANS_LOG_GROUP,
+            startTime=start_time,
+            endTime=end_time,
+            queryString=query,
+        )
+    except logs.exceptions.ResourceNotFoundException:
+        logger.info("spans log group %s not found yet — returning empty result", SPANS_LOG_GROUP)
+        return {"results": [], "status": "Complete"}
+
+    query_id = query_res["queryId"]
+    result: dict = {}
+    for _ in range(20):
+        await asyncio.sleep(1)
+        result = await asyncio.to_thread(logs.get_query_results, queryId=query_id)
+        if result["status"] == "Complete":
+            break
+    return result
+
 
 @router.get("/sessions")
 async def list_sessions(
@@ -37,21 +70,7 @@ async def list_sessions(
 | sort @timestamp desc
 | limit 50"""
 
-    query_res = await asyncio.to_thread(
-        logs.start_query,
-        logGroupName="aws/spans",
-        startTime=start_time,
-        endTime=end_time,
-        queryString=query,
-    )
-    query_id = query_res["queryId"]
-
-    result: dict = {}
-    for _ in range(20):
-        await asyncio.sleep(1)
-        result = await asyncio.to_thread(logs.get_query_results, queryId=query_id)
-        if result["status"] == "Complete":
-            break
+    result = await _run_logs_insights_query(query, start_time, end_time)
 
     sessions: dict[str, list] = {}
     for row in result.get("results", []):
@@ -125,21 +144,7 @@ async def get_trace_logs(trace_id: str):
     end_time = int(time.time())
     start_time = end_time - 86400 * 3
 
-    query_res = await asyncio.to_thread(
-        logs.start_query,
-        logGroupName="aws/spans",
-        startTime=start_time,
-        endTime=end_time,
-        queryString=query,
-    )
-    query_id = query_res["queryId"]
-
-    result = {}
-    for _ in range(20):
-        await asyncio.sleep(1)
-        result = await asyncio.to_thread(logs.get_query_results, queryId=query_id)
-        if result["status"] == "Complete":
-            break
+    result = await _run_logs_insights_query(query, start_time, end_time)
 
     otel_spans = []
     for row in result.get("results", []):
@@ -296,21 +301,7 @@ async def get_session_traces(session_id: str, hours: int = Query(default=24)):
 | sort @timestamp desc
 | limit 50"""
 
-    query_res = await asyncio.to_thread(
-        logs.start_query,
-        logGroupName="aws/spans",
-        startTime=start_time,
-        endTime=end_time,
-        queryString=query,
-    )
-    query_id = query_res["queryId"]
-
-    result: dict = {}
-    for _ in range(20):
-        await asyncio.sleep(1)
-        result = await asyncio.to_thread(logs.get_query_results, queryId=query_id)
-        if result["status"] == "Complete":
-            break
+    result = await _run_logs_insights_query(query, start_time, end_time)
 
     traces = []
     for row in result.get("results", []):
