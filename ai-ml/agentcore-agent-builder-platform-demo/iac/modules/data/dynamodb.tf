@@ -76,6 +76,15 @@ resource "aws_dynamodb_table" "platform" {
     enabled        = true
   }
 
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = aws_kms_key.dynamodb.arn
+  }
+
   tags = merge(var.tags, {
     Name = "${var.prefix}-platform"
   })
@@ -99,6 +108,15 @@ resource "aws_dynamodb_table" "incidents" {
   attribute {
     name = "SK"
     type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = aws_kms_key.dynamodb.arn
   }
 
   tags = merge(var.tags, {
