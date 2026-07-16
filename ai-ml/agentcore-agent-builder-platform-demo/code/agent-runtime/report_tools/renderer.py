@@ -2,7 +2,7 @@
 
 import os
 
-from jinja2 import ChainableUndefined, Environment, FileSystemLoader
+from jinja2 import ChainableUndefined, Environment, FileSystemLoader, select_autoescape
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
@@ -25,6 +25,7 @@ def render_report(report_type: str, data: dict) -> str:
     env = Environment(
         loader=FileSystemLoader(TEMPLATE_DIR),
         undefined=ChainableUndefined,
+        autoescape=select_autoescape(["html", "xml"]),
     )
     merged = {**DEFAULTS, **data}
     template_name = f"{report_type}-template.html"
