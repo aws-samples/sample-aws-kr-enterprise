@@ -398,4 +398,7 @@ async def ping():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    # Bind to all interfaces so the AgentCore Runtime orchestrator can reach the container.
+    # Network exposure is controlled by ECS/AgentCore SG and VPC isolation.
+    bind_host = os.getenv("BIND_HOST", "0.0.0.0")  # nosec B104 - required for container runtime
+    uvicorn.run(app, host=bind_host, port=8080)
