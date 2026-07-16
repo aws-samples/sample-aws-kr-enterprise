@@ -1,5 +1,7 @@
 # code/agent/Dockerfile
-FROM python:3.12-slim
+# Base image pulled from Amazon ECR Public (Docker Official mirror).
+# Multi-arch manifest (amd64 + arm64/v8) — CodeBuild selects the host arch (arm64 for AgentCore Runtime).
+FROM public.ecr.aws/docker/library/python:3.12-slim
 
 WORKDIR /app
 
