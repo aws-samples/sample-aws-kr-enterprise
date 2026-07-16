@@ -75,3 +75,9 @@ variable "platform_domain" {
   default     = ""
 }
 
+variable "alb_deletion_protection" {
+  type        = bool
+  description = "Enable ALB deletion protection (set true for production; false eases demo teardown)"
+  default     = false
+}
+

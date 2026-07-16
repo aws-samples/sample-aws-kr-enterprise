@@ -21,7 +21,7 @@ resource "aws_ecs_cluster" "main" {
 
 resource "aws_cloudwatch_log_group" "platform_api" {
   name              = "/ecs/${var.prefix}/platform-api"
-  retention_in_days = 14
+  retention_in_days = 365
 
   tags = merge(var.tags, {
     Name = "${var.prefix}-platform-api-logs"
@@ -30,7 +30,7 @@ resource "aws_cloudwatch_log_group" "platform_api" {
 
 resource "aws_cloudwatch_log_group" "frontend" {
   name              = "/ecs/${var.prefix}/frontend"
-  retention_in_days = 14
+  retention_in_days = 365
 
   tags = merge(var.tags, {
     Name = "${var.prefix}-frontend-logs"
@@ -78,8 +78,16 @@ resource "aws_ecs_task_definition" "platform_api" {
           "awslogs-stream-prefix" = "api"
         }
       }
+      readonlyRootFilesystem = true
+      mountPoints = [
+        { sourceVolume = "tmp", containerPath = "/tmp", readOnly = false }
+      ]
     }
   ])
+
+  volume {
+    name = "tmp"
+  }
 
   tags = merge(var.tags, {
     Name = "${var.prefix}-platform-api-task"
@@ -145,8 +153,20 @@ resource "aws_ecs_task_definition" "frontend" {
           "awslogs-stream-prefix" = "fe"
         }
       }
+      readonlyRootFilesystem = true
+      mountPoints = [
+        { sourceVolume = "tmp", containerPath = "/tmp", readOnly = false },
+        { sourceVolume = "next-cache", containerPath = "/app/.next/cache", readOnly = false }
+      ]
     }
   ])
+
+  volume {
+    name = "tmp"
+  }
+  volume {
+    name = "next-cache"
+  }
 
   tags = merge(var.tags, {
     Name = "${var.prefix}-frontend-task"
