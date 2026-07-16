@@ -51,6 +51,15 @@ resource "aws_iam_role_policy" "platform_api_task" {
         ]
       },
       {
+        Sid    = "DynamoDBKMS"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ]
+        Resource = var.dynamodb_kms_key_arn
+      },
+      {
         Sid    = "BedrockInvokeModel"
         Effect = "Allow"
         Action = [
@@ -79,6 +88,18 @@ resource "aws_iam_role_policy" "platform_api_task" {
           "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:runtime/*",
           "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:runtime-endpoint/*"
         ]
+      },
+      {
+        # List/Get gateway operations are account-scoped and do not support
+        # resource-level constraints, so they require Resource = "*".
+        Sid    = "BedrockAgentCoreGatewayList"
+        Effect = "Allow"
+        Action = [
+          "bedrock-agentcore:ListGateways",
+          "bedrock-agentcore:ListGatewayTargets",
+          "bedrock-agentcore:GetGateway"
+        ]
+        Resource = "*"
       },
       {
         Sid    = "CloudWatchLogs"

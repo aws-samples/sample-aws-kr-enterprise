@@ -94,10 +94,11 @@ module "iam" {
   prefix              = local.prefix
   aws_region          = var.aws_region
   account_id          = data.aws_caller_identity.current.account_id
-  platform_table_arn  = module.data.platform_table_arn
-  incidents_table_arn = module.data.incidents_table_arn
-  reports_bucket_arn  = module.data.reports_bucket_arn
-  tags                = local.common_tags
+  platform_table_arn   = module.data.platform_table_arn
+  incidents_table_arn  = module.data.incidents_table_arn
+  reports_bucket_arn   = module.data.reports_bucket_arn
+  dynamodb_kms_key_arn = module.data.dynamodb_kms_key_arn
+  tags                 = local.common_tags
 }
 
 module "compute" {

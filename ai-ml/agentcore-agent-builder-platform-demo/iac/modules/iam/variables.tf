@@ -28,6 +28,11 @@ variable "reports_bucket_arn" {
   description = "S3 reports bucket ARN"
 }
 
+variable "dynamodb_kms_key_arn" {
+  type        = string
+  description = "KMS CMK ARN used to encrypt the DynamoDB tables (required for kms:Decrypt/GenerateDataKey by consumers)"
+}
+
 variable "tags" {
   type        = map(string)
   description = "Common tags"

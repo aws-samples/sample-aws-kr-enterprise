@@ -49,6 +49,15 @@ resource "aws_iam_role_policy" "agentcore_runtime" {
         ]
       },
       {
+        Sid    = "DynamoDBKMS"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ]
+        Resource = var.dynamodb_kms_key_arn
+      },
+      {
         Sid      = "S3Reports"
         Effect   = "Allow"
         Action   = "s3:PutObject"

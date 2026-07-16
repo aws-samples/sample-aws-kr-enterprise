@@ -25,3 +25,7 @@ output "reports_bucket_arn" {
 output "reports_bucket_regional_domain" {
   value = aws_s3_bucket.reports.bucket_regional_domain_name
 }
+
+output "dynamodb_kms_key_arn" {
+  value = aws_kms_key.dynamodb.arn
+}
