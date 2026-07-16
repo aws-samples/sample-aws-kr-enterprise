@@ -3,3 +3,6 @@
 
 # Tooling / MCP artifacts
 .playwright-mcp/
+
+# Temporary / scratch work (any project) — not for tracking
+parking_lot/
