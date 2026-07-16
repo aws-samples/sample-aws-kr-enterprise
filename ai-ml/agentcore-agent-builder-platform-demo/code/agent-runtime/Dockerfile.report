@@ -1,6 +1,6 @@
 # code/agent/Dockerfile.report
 # Per review B-M4: use build arg for ECR base reference
-ARG BASE_IMAGE=aiops-base-image:latest
+ARG BASE_IMAGE=public.ecr.aws/docker/library/python:3.12-slim
 FROM ${BASE_IMAGE}
 
 COPY report_tools/ ./report_tools/
