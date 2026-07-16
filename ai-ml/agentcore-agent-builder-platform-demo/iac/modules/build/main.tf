@@ -29,6 +29,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "codebuild_source" {
 ################################################################################
 
 resource "aws_codebuild_project" "x86" {
+  #checkov:skip=CKV_AWS_316:Docker image builds require privileged mode to run the Docker daemon inside CodeBuild.
   name         = "${var.prefix}-build-x86"
   description  = "Build amd64 container images (platform-api, frontend)"
   service_role = aws_iam_role.codebuild.arn
@@ -70,6 +71,7 @@ resource "aws_codebuild_project" "x86" {
 }
 
 resource "aws_codebuild_project" "arm64" {
+  #checkov:skip=CKV_AWS_316:Docker image builds require privileged mode to run the Docker daemon inside CodeBuild.
   name         = "${var.prefix}-build-arm64"
   description  = "Build arm64 container images (base-image, report-image)"
   service_role = aws_iam_role.codebuild.arn
