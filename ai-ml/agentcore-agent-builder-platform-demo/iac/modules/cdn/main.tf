@@ -94,11 +94,11 @@ resource "aws_security_group_rule" "alb_ingress_vpc_origin" {
 ################################################################################
 
 resource "aws_cloudfront_distribution" "main" {
-  #checkov:skip=CKV_AWS_305:This distribution serves the SPA/API from ALB origin; "/" maps to the app, a default root object is not applicable.
-  enabled         = true
-  comment         = "${var.prefix} platform"
-  aliases         = var.domain_name != "" ? ["aiops-v2.${var.domain_name}"] : []
-  is_ipv6_enabled = true
+  enabled             = true
+  default_root_object = "index.html"
+  comment             = "${var.prefix} platform"
+  aliases             = var.domain_name != "" ? ["aiops-v2.${var.domain_name}"] : []
+  is_ipv6_enabled     = true
 
   origin {
     domain_name = var.alb_dns
