@@ -9,6 +9,15 @@ resource "aws_ecr_repository" "repos" {
   image_tag_mutability = "MUTABLE"
   force_delete         = true
 
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "KMS"
+    kms_key         = aws_kms_key.ecr.arn
+  }
+
   tags = merge(var.tags, {
     Name = "${var.prefix}-${each.key}"
   })
