@@ -22,10 +22,55 @@ if [ -z "$ROLE_ARN" ] || [ "$ROLE_ARN" = "None" ]; then
                 {"Effect": "Allow", "Principal": {"Service": "bedrock-agentcore.amazonaws.com"}, "Action": "sts:AssumeRole"}
             ]
         }' 2>/dev/null || true
-    aws iam attach-role-policy --role-name AWSopsAgentCoreRole \
-        --policy-arn arn:aws:iam::aws:policy/AmazonBedrockFullAccess 2>/dev/null || true
-    aws iam put-role-policy --role-name AWSopsAgentCoreRole --policy-name ECRAndLambda \
-        --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ecr:*","lambda:InvokeFunction","lambda:GetFunction","bedrock-agentcore:*"],"Resource":"*"}]}'
+    # Least-privilege inline policy (scoped actions, no service wildcards).
+    # Assumed by AgentCore Gateways to: invoke Bedrock models, pull ECR images
+    # for MCP Lambda targets, invoke MCP Lambda functions, and manage gateways/runtimes.
+    aws iam put-role-policy --role-name AWSopsAgentCoreRole --policy-name AWSopsGatewayLeastPriv \
+        --policy-document '{
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "BedrockModelInvoke",
+                    "Effect": "Allow",
+                    "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
+                    "Resource": [
+                        "arn:aws:bedrock:*::foundation-model/*",
+                        "arn:aws:bedrock:*:*:inference-profile/*"
+                    ]
+                },
+                {
+                    "Sid": "EcrImagePull",
+                    "Effect": "Allow",
+                    "Action": [
+                        "ecr:GetAuthorizationToken",
+                        "ecr:BatchGetImage",
+                        "ecr:GetDownloadUrlForLayer",
+                        "ecr:BatchCheckLayerAvailability"
+                    ],
+                    "Resource": "*"
+                },
+                {
+                    "Sid": "LambdaMcpTargets",
+                    "Effect": "Allow",
+                    "Action": ["lambda:InvokeFunction", "lambda:GetFunction"],
+                    "Resource": "arn:aws:lambda:*:*:function:awsops-*"
+                },
+                {
+                    "Sid": "AgentCoreGatewayRuntime",
+                    "Effect": "Allow",
+                    "Action": [
+                        "bedrock-agentcore:InvokeAgentRuntime",
+                        "bedrock-agentcore:GetAgentRuntime",
+                        "bedrock-agentcore:CreateGateway",
+                        "bedrock-agentcore:ListGateways",
+                        "bedrock-agentcore:GetGateway",
+                        "bedrock-agentcore:CreateGatewayTarget",
+                        "bedrock-agentcore:ListGatewayTargets"
+                    ],
+                    "Resource": "*"
+                }
+            ]
+        }'
     ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/AWSopsAgentCoreRole"
     echo "Waiting for IAM propagation (10s)..."
     sleep 10
