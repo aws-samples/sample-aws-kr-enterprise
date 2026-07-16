@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 import boto3
 
 REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
-REPORT_BUCKET = os.environ.get("REPORT_BUCKET", "aiops-v2-dev-reports")
-REPORT_CF_DOMAIN = os.environ.get("REPORT_CF_DOMAIN", "dv74yqgawkdw6.cloudfront.net")
+REPORT_BUCKET = os.environ["REPORT_BUCKET"]
+REPORT_CF_DOMAIN = os.environ["REPORT_CF_DOMAIN"]
 
 _s3_cache: dict = {}
 
