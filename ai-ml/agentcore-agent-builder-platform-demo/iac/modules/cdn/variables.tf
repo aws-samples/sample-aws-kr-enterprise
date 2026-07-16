@@ -53,6 +53,16 @@ variable "alb_security_group_id" {
   description = "ALB Security Group ID to attach VPC Origin ingress rule"
 }
 
+variable "account_id" {
+  type        = string
+  description = "AWS Account ID for globally unique log bucket naming"
+}
+
+variable "aws_region" {
+  type        = string
+  description = "AWS region for log bucket naming"
+}
+
 variable "tags" {
   type        = map(string)
   description = "Common tags"

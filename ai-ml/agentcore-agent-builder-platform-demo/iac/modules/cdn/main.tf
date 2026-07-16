@@ -94,6 +94,7 @@ resource "aws_security_group_rule" "alb_ingress_vpc_origin" {
 ################################################################################
 
 resource "aws_cloudfront_distribution" "main" {
+  #checkov:skip=CKV_AWS_305:This distribution serves the SPA/API from ALB origin; "/" maps to the app, a default root object is not applicable.
   enabled         = true
   comment         = "${var.prefix} platform"
   aliases         = var.domain_name != "" ? ["aiops-v2.${var.domain_name}"] : []
@@ -153,6 +154,12 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
+  logging_config {
+    bucket          = aws_s3_bucket.cf_logs.bucket_domain_name
+    prefix          = "platform/"
+    include_cookies = false
+  }
+
   tags = merge(var.tags, {
     Name = "${var.prefix}-cf-platform"
   })
@@ -170,9 +177,11 @@ resource "aws_cloudfront_origin_access_control" "reports" {
 }
 
 resource "aws_cloudfront_distribution" "reports" {
-  enabled         = true
-  comment         = "${var.prefix} reports"
-  is_ipv6_enabled = true
+  #checkov:skip=CKV_AWS_174:Uses cloudfront_default_certificate; minimum TLS version is fixed by CloudFront and cannot be set. Custom-domain path (main dist) enforces TLSv1.2_2021.
+  enabled             = true
+  comment             = "${var.prefix} reports"
+  is_ipv6_enabled     = true
+  default_root_object = "index.html"
 
   origin {
     domain_name              = var.reports_bucket_regional_domain
@@ -198,6 +207,12 @@ resource "aws_cloudfront_distribution" "reports" {
     geo_restriction {
       restriction_type = "none"
     }
+  }
+
+  logging_config {
+    bucket          = aws_s3_bucket.cf_logs.bucket_domain_name
+    prefix          = "reports/"
+    include_cookies = false
   }
 
   tags = merge(var.tags, {
