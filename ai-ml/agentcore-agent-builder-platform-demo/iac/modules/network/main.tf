@@ -20,7 +20,7 @@ resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = cidrsubnet(var.vpc_cidr, 8, 1)
   availability_zone       = "${var.aws_region}a"
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
 
   tags = merge(var.tags, {
     Name = "${var.prefix}-public-a"
@@ -31,7 +31,7 @@ resource "aws_subnet" "public_c" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = cidrsubnet(var.vpc_cidr, 8, 2)
   availability_zone       = "${var.aws_region}c"
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
 
   tags = merge(var.tags, {
     Name = "${var.prefix}-public-c"
