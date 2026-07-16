@@ -71,7 +71,6 @@ resource "aws_security_group" "ecs" {
 ################################################################################
 
 resource "aws_lb" "main" {
-  #checkov:skip=CKV_AWS_150:Demo teardown convenience; enable via alb_deletion_protection var in production.
   name               = "${var.prefix}-alb"
   internal           = true
   load_balancer_type = "application"
