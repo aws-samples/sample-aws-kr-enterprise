@@ -94,11 +94,11 @@ resource "aws_security_group_rule" "alb_ingress_vpc_origin" {
 ################################################################################
 
 resource "aws_cloudfront_distribution" "main" {
-  enabled             = true
-  default_root_object = "index.html"
-  comment             = "${var.prefix} platform"
-  aliases             = var.domain_name != "" ? ["aiops-v2.${var.domain_name}"] : []
-  is_ipv6_enabled     = true
+  # checkov:skip=CKV_AWS_305:Origin is a dynamic Next.js app behind an internal ALB, not static S3. Setting default_root_object=index.html makes CloudFront rewrite "/" to a nonexistent /index.html and breaks the home route (Next.js serves "/" via app/page.tsx). Submitted for waiver.
+  enabled         = true
+  comment         = "${var.prefix} platform"
+  aliases         = var.domain_name != "" ? ["aiops-v2.${var.domain_name}"] : []
+  is_ipv6_enabled = true
 
   origin {
     domain_name = var.alb_dns
