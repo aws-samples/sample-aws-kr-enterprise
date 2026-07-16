@@ -195,7 +195,10 @@ def lambda_handler(event, context):
                     "arguments": {"search_phrase": "EKS troubleshoot " + args.get("query", ""), "limit": 5}}}).encode()
             req = urllib.request.Request("https://knowledge-mcp.global.api.aws",
                 data=payload, headers={"Content-Type": "application/json", "Accept": "application/json"})
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            # Only allow HTTPS to prevent file:// or custom-scheme access (B310)
+            if req.type != "https":
+                return {"statusCode": 400, "body": json.dumps({"error": "Only https scheme is permitted"})}
+            with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 - scheme validated above
                 data = json.loads(resp.read().decode())
             content = data.get("result", {}).get("content", [])
             return {"statusCode": 200, "body": "\n".join(c.get("text", "") for c in content if c.get("type") == "text")[:50000]}
