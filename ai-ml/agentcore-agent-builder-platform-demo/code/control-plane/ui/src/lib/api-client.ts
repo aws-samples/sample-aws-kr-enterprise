@@ -1,14 +1,35 @@
 // Platform API client. Spec Section 3.2.
 
 import type { AgentConfig, AgentDetail, SessionMeta, SessionDetail, OtelSpan, TraceSession, ServiceNode } from './types';
+import { getToken, clearSession } from './auth';
 
 const API_BASE = '/api';
 
+/** Build request headers, injecting the Cognito bearer token when present. */
+export function authHeaders(extra?: HeadersInit): HeadersInit {
+  const token = getToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  };
+}
+
+/** On 401 the token is stale/absent — clear it and bounce to the login gate. */
+function handleUnauthorized() {
+  clearSession();
+  if (typeof window !== 'undefined') window.location.reload();
+}
+
 async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
+    headers: authHeaders(options?.headers),
   });
+  if (res.status === 401) {
+    handleUnauthorized();
+    throw new Error('Session expired. Please sign in again.');
+  }
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }));
     const detail = typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail);
@@ -56,7 +77,7 @@ export const builder = {
   ): Promise<Response> =>
     fetch(`${API_BASE}/builder/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ messages, sessionId, state }),
     }),
 };

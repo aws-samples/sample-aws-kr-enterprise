@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
+import { logout } from '@/lib/auth';
 import {
   LayoutDashboard, Bot, Wrench, LogOut, BookOpen, Presentation,
   PanelLeftClose, PanelLeftOpen, Activity,
@@ -73,7 +74,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       <div className="shrink-0 px-3 py-3 border-t border-[var(--border)]">
         <button
-          onClick={() => { window.location.href = '/api/auth/logout'; }}
+          onClick={() => { logout(); }}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-white transition-colors w-full ${collapsed ? 'justify-center' : ''}`}
           title={collapsed ? 'Logout' : undefined}
         >

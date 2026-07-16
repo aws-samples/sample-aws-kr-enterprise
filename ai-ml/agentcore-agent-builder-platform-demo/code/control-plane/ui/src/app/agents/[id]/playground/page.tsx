@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Header from '@/components/common/Header';
 import ChatPanel from '@/components/chat/ChatPanel';
 import SSEEventDisplay from '@/components/chat/SSEEventDisplay';
-import { agents as agentsApi, feedback as feedbackApi } from '@/lib/api-client';
+import { agents as agentsApi, feedback as feedbackApi, authHeaders } from '@/lib/api-client';
 import type { ChatMessage, SSEEvent } from '@/lib/types';
 
 // --- HITL Modal Component ---
@@ -124,7 +124,7 @@ export default function PlaygroundPage() {
     try {
       const response = await fetch(`/api/agents/${agentId}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ message, sessionId }),
       });
 
