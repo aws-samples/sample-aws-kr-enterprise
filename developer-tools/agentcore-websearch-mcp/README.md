@@ -31,7 +31,18 @@ AgentCore Gateway는 웹 검색을 표준 MCP 도구로 노출하지만, **IAM�
 - 스택 배포 권한이 있는 AWS 자격증명 설정 (`aws configure`, `AWS_PROFILE`, SSO, 또는 역할).
 - 아래 배포 단계를 위한 AWS CLI.
 
-> **리전:** Web Search Tool 커넥터는 **`us-east-1`** (버지니아 북부)에서만 사용할 수 있습니다. 스택도 그 리전에 배포하세요.
+> **리전:** **2026년 7월 기준**, Web Search Tool 커넥터는 **`us-east-1`** (버지니아 북부)에서만 사용할 수 있습니다. 스택도 그 리전에 배포하세요.
+
+### 0. 저장소 복제
+
+먼저 저장소를 복제하고 이 프로젝트 디렉터리로 이동합니다. **`server.py`는 여기 계속 남아 있어야 하므로**(아래 참고), 지워지거나 옮겨지지 않을 위치에 복제하세요.
+
+```bash
+git clone https://github.com/aws-samples/sample-aws-kr-enterprise.git
+cd sample-aws-kr-enterprise/developer-tools/agentcore-websearch-mcp
+```
+
+> **`server.py`는 일회성이 아니라 계속 사용됩니다.** 아래 등록 과정은 Claude Code가 **웹 검색을 할 때마다 실행할 로컬 명령**으로 `python3 /절대경로/server.py`를 저장합니다. 즉 `server.py`는 프록시로서 상주하며 매 검색마다 다시 실행됩니다. 배포가 끝난 뒤에도 **복제한 저장소(특히 `server.py`)를 삭제하거나 옮기지 마세요.** 옮겨야 한다면 MCP 등록의 경로도 함께 갱신해야 합니다(스크립트를 다시 실행하는 것이 가장 간단합니다).
 
 ### 자동 설치 (권장)
 

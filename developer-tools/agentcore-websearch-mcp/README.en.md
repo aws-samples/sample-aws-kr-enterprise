@@ -31,7 +31,18 @@ The AgentCore Gateway exposes web search as a standard MCP tool, but only over a
 - AWS credentials configured (`aws configure`, `AWS_PROFILE`, SSO, or a role) with permission to deploy the stack.
 - The AWS CLI, for the deploy step below.
 
-> **Region:** the Web Search Tool connector is only available in **`us-east-1`** (N. Virginia). Deploy the stack there.
+> **Region:** as of July 2026, the Web Search Tool connector is only available in **`us-east-1`** (N. Virginia). Deploy the stack there.
+
+### 0. Clone the repository
+
+Clone the repository and change into this project directory first. **`server.py` has to stay here** (see the note below), so clone it somewhere it won't be deleted or moved.
+
+```bash
+git clone https://github.com/aws-samples/sample-aws-kr-enterprise.git
+cd sample-aws-kr-enterprise/developer-tools/agentcore-websearch-mcp
+```
+
+> **`server.py` is used continuously, not once.** The registration step below records `python3 /absolute/path/to/server.py` as the **local command Claude Code runs on every web search** — the proxy stays resident and is re-invoked for each query. Even after deploying, **do not delete or move the cloned repository (`server.py` in particular).** If you do move it, update the path in the MCP registration too (re-running the script is the easiest way).
 
 ### Automated setup (recommended)
 
