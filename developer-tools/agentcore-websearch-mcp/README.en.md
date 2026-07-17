@@ -25,6 +25,8 @@ The AgentCore Gateway exposes web search as a standard MCP tool, but only over a
 
 ## Quick start
 
+> **MCP client:** every example here uses **Claude Code**, but `server.py` is a standard MCP stdio server, so it **works just as well with any other MCP-capable app (OpenAI Codex, Cursor, Cline, etc.).** In that app's MCP config, set `command` to `python3`, `args` to the absolute path of `server.py`, and `env` to `AGENTCORE_GATEWAY_URL` (plus `AWS_PROFILE` if needed). Only Claude Code-specific commands like `claude mcp add` need to be swapped for that app's own registration method.
+
 ### Prerequisites
 
 - Python 3.9+ with `botocore` installed (`pip install botocore`).

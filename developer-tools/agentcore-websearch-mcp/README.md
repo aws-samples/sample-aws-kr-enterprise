@@ -25,6 +25,8 @@ AgentCore Gateway는 웹 검색을 표준 MCP 도구로 노출하지만, **IAM�
 
 ## 빠른 시작 (Quick Start)
 
+> **MCP 클라이언트:** 이 문서의 모든 예제는 **Claude Code**를 기준으로 작성했지만, `server.py`는 표준 MCP stdio 서버이므로 **MCP를 지원하는 다른 앱(OpenAI Codex, Cursor, Cline 등)에서도 그대로 사용할 수 있습니다.** 각 앱의 MCP 설정에 `command`를 `python3`, `args`를 `server.py` 절대경로, `env`에 `AGENTCORE_GATEWAY_URL`(필요 시 `AWS_PROFILE`)을 지정하면 됩니다. `claude mcp add`처럼 Claude Code 전용 명령만 해당 앱의 등록 방식으로 바꿔 주세요.
+
 ### 사전 준비
 
 - `botocore`가 설치된 Python 3.9+ (`pip install botocore`).
