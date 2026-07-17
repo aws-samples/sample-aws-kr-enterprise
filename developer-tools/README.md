@@ -17,6 +17,7 @@ AWS 개발자 도구 및 DevOps 서비스를 활용한 데모 및 샘플 코드 
 | 프로젝트 | 설명 | 주요 서비스 |
 |---------|------|------------|
 | [structured-ai-dev-workflow](./structured-ai-dev-workflow/) | Kiro Subagent를 활용한 구조화된 AI 개발 워크플로우. Multi-agent 시스템(Dev, Review, QA, Docs) 설계, Anthropic 연구 기반 프롬프트 엔지니어링 가이드 | Kiro |
+| [agentcore-websearch-mcp](./agentcore-websearch-mcp/) | Amazon Bedrock AgentCore Gateway로 웹 검색 MCP 서버를 구축하는 CloudFormation 템플릿과 배포 스크립트. 게이트웨이·IAM 역할·web-search 커넥터를 한 번에 프로비저닝하고 Claude Code에 MCP 서버로 자동 등록 | Amazon Bedrock AgentCore, AWS CloudFormation |
 
 ## 참고 리소스
 

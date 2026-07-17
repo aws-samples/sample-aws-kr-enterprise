@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Amazon Bedrock AgentCore Gateway exposing the built-in Web Search Tool over MCP
+  with AWS_IAM inbound auth. Provisions the gateway, its outbound service role
+  (bedrock-agentcore:InvokeWebSearch), and the web-search connector target.
+  The GatewayMcpUrl output is the value for the agentcore-websearch proxy's
+  AGENTCORE_GATEWAY_URL environment variable.
+
+# NOTE: The Web Search Tool connector is only available in us-east-1 (N. Virginia).
+# Deploy this stack in us-east-1.
+
+Parameters:
+  GatewayName:
+    Type: String
+    Default: agentcore-websearch
+    Description: Name of the AgentCore Gateway.
+    AllowedPattern: "^([0-9a-zA-Z][-]?){1,100}$"
+    MinLength: 1
+    MaxLength: 100
+
+  TargetName:
+    Type: String
+    Default: web-search
+    Description: Name of the web-search connector target on the gateway.
+    AllowedPattern: "^([0-9a-zA-Z][-]?){1,100}$"
+
+Resources:
+  # Outbound service role the gateway assumes to call the Web Search backend.
+  # Inbound auth (who may call the gateway) is handled separately by AWS_IAM below.
+  GatewayServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: >-
+        Service role assumed by AgentCore Gateway to authorize web-search invocations.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: GatewayAssumeRole
+            Effect: Allow
+            Principal:
+              Service: bedrock-agentcore.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                # Scoped to gateways in this account/region (not the specific gateway
+                # ARN, which would create a circular dependency with the role below).
+                aws:SourceArn: !Sub "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:gateway/*"
+      Policies:
+        - PolicyName: agentcore-websearch-invoke
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: InvokeGateway
+                Effect: Allow
+                Action: bedrock-agentcore:InvokeGateway
+                Resource: !Sub "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:gateway/*"
+              - Sid: InvokeWebSearch
+                Effect: Allow
+                Action: bedrock-agentcore:InvokeWebSearch
+                # Service-owned tool ARN (account = "aws"); authorization is checked
+                # per-request against this ARN.
+                Resource: !Sub "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:aws:tool/web-search.v1"
+
+  Gateway:
+    Type: AWS::BedrockAgentCore::Gateway
+    Properties:
+      Name: !Ref GatewayName
+      Description: Web Search Tool gateway (MCP, AWS_IAM inbound auth).
+      ProtocolType: MCP
+      AuthorizerType: AWS_IAM
+      RoleArn: !GetAtt GatewayServiceRole.Arn
+
+  WebSearchTarget:
+    Type: AWS::BedrockAgentCore::GatewayTarget
+    Properties:
+      Name: !Ref TargetName
+      Description: Built-in Web Search Tool connector target.
+      GatewayIdentifier: !Ref Gateway
+      CredentialProviderConfigurations:
+        - CredentialProviderType: GATEWAY_IAM_ROLE
+      TargetConfiguration:
+        Mcp:
+          Connector:
+            Source:
+              ConnectorId: web-search
+            Configurations:
+              - Name: WebSearch
+                ParameterValues: {}
+
+Outputs:
+  GatewayMcpUrl:
+    Description: >-
+      MCP endpoint URL. Set this as AGENTCORE_GATEWAY_URL for the agentcore-websearch proxy.
+    Value: !GetAtt Gateway.GatewayUrl
+
+  GatewayId:
+    Description: The gateway identifier.
+    Value: !GetAtt Gateway.GatewayIdentifier
+
+  GatewayArn:
+    Description: The gateway ARN.
+    Value: !GetAtt Gateway.GatewayArn
+
+  GatewayServiceRoleArn:
+    Description: ARN of the gateway outbound service role.
+    Value: !GetAtt GatewayServiceRole.Arn
