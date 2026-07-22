@@ -374,13 +374,13 @@ async def invocations(request: Request):
     except Exception as e:
         import traceback
 
-        error_detail = traceback.format_exc()
-        logger.error("Agent execution error: %s\n%s", e, error_detail)
+        # Log the full traceback server-side only; never return it to the client
+        # (avoids leaking internal stack details). / 트레이스백은 서버 로그에만
+        # 남기고 클라이언트에는 반환하지 않는다(내부 스택 노출 방지).
+        logger.error("Agent execution error: %s\n%s", e, traceback.format_exc())
         if writer:
-            writer.write_event(
-                "error", {"message": str(e), "traceback": error_detail[-500:]}
-            )
-        return {"error": str(e), "traceback": error_detail[-500:]}
+            writer.write_event("error", {"message": str(e)})
+        return {"error": str(e)}
     finally:
         obs_hook.writer = None
 

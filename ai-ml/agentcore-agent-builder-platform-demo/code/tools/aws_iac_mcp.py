@@ -6,8 +6,39 @@ import json
 import urllib.request
 import urllib.parse
 import re
-import html
+from html.parser import HTMLParser
 from cross_account import get_client, get_role_arn
+
+
+class _TextExtractor(HTMLParser):
+    """Extract visible text from HTML, skipping <script>/<style> content.
+
+    Uses the stdlib HTML parser instead of regex tag stripping so that
+    script/style bodies are dropped by a real parser (regex-based tag
+    filtering is bypassable). / 정규식 대신 표준 HTML 파서로 스크립트/스타일
+    본문을 제거하고 보이는 텍스트만 추출한다."""
+
+    _SKIP = {"script", "style"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self._parts = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() in self._SKIP:
+            self._skip_depth += 1
+
+    def handle_endtag(self, tag):
+        if tag.lower() in self._SKIP and self._skip_depth > 0:
+            self._skip_depth -= 1
+
+    def handle_data(self, data):
+        if self._skip_depth == 0:
+            self._parts.append(data)
+
+    def get_text(self):
+        return "".join(self._parts)
 
 
 # Static content tools / 정적 콘텐츠 도구
@@ -173,12 +204,11 @@ def read_doc_page(url, max_length=10000):
     req = urllib.request.Request(url, headers={'User-Agent': 'AWSops-IaC-MCP/1.0'})
     with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 - scheme validated to http/https above
         raw = resp.read().decode('utf-8', errors='replace')
-    # Simple HTML to text: strip scripts, styles, tags / 간단한 HTML→텍스트 변환: 스크립트, 스타일, 태그 제거
-    text = re.sub(r'<script[^>]*>.*?</script>', '', raw, flags=re.DOTALL)
-    text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
-    text = re.sub(r'<[^>]+>', ' ', text)
-    text = html.unescape(text)
-    text = re.sub(r'\s+', ' ', text).strip()
+    # HTML to text via stdlib parser (drops script/style, unescapes entities)
+    # 표준 HTML 파서로 텍스트 변환 (스크립트/스타일 제거, 엔티티 복원)
+    parser = _TextExtractor()
+    parser.feed(raw)
+    text = re.sub(r'\s+', ' ', parser.get_text()).strip()
     return text[:max_length]
 
 

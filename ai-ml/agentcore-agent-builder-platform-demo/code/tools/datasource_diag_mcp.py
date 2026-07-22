@@ -11,6 +11,7 @@ URL 검증, DNS 해석, NLB 타겟, SG 분석, 네트워크 경로 추적,
 HTTP 연결, K8s 서비스 엔드포인트, 전체 오케스트레이션 진단.
 """
 import json
+import re
 import socket
 import time
 import ipaddress
@@ -18,6 +19,14 @@ from urllib.parse import urlparse
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 from cross_account import get_client, get_role_arn
+
+# AWS ELB DNS names look like "<name>-<hash>.elb.<region>.amazonaws.com" (or the
+# legacy "<name>-<hash>.<region>.elb.amazonaws.com"). Match on the full parsed
+# host so a lookalike domain such as "elb.amazonaws.com.evil.com" is not treated
+# as an ELB. / 부분 문자열이 아닌 파싱된 호스트 전체로 ELB DNS를 판정한다.
+_ELB_DNS_RE = re.compile(
+    r"\.elb\.[a-z0-9-]+\.amazonaws\.com$|\.[a-z0-9-]+\.elb\.amazonaws\.com$"
+)
 
 
 def lambda_handler(event, context):
@@ -119,9 +128,11 @@ def _validate_datasource_url(args):
     port = parsed.port
     path = parsed.path or ""
 
-    # Detect NLB DNS pattern / NLB DNS 패턴 감지
-    is_nlb_dns = ".elb." in hostname and ".amazonaws.com" in hostname
-    is_alb_dns = ".elb." in hostname and ".amazonaws.com" in hostname and hostname.startswith("k8s-")
+    # Detect ELB DNS pattern via full-host match / 전체 호스트 매칭으로 ELB DNS 감지
+    host_lower = hostname.lower()
+    is_elb_dns = bool(_ELB_DNS_RE.search(host_lower))
+    is_nlb_dns = is_elb_dns
+    is_alb_dns = is_elb_dns and host_lower.startswith("k8s-")
 
     # Check if hostname resolves to private IP / 사설 IP 여부 확인
     is_private_ip = False

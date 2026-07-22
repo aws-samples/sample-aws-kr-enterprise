@@ -4,6 +4,7 @@ Terraform/Terragrunt 실행, 프로바이더 문서, 모듈 검색, Checkov 보�
 """
 import json
 import urllib.request
+import urllib.parse
 import re
 
 
@@ -66,7 +67,10 @@ def search_registry_module(module_url, version=None):
     """Fetch Terraform Registry module details. / Terraform 레지스트리 모듈 세부 정보를 가져옵니다."""
     # Parse module identifier (e.g., "hashicorp/consul/aws" or full URL) / 모듈 식별자 파싱 (예: "hashicorp/consul/aws" 또는 전체 URL)
     module_id = module_url
-    if "registry.terraform.io" in module_url:
+    # Match on the parsed host (not a substring) so only genuine Registry URLs
+    # are unwrapped. / 부분 문자열이 아닌 파싱된 호스트로 매칭하여 실제 레지스트리 URL만 처리
+    host = (urllib.parse.urlparse(module_url).hostname or "").lower()
+    if host == "registry.terraform.io":
         parts = module_url.rstrip("/").split("/modules/")
         if len(parts) > 1:
             module_id = parts[1]
