@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIOps Multi Agent Platform v2 — Architecture</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e2e4ea;
+    --text-dim: #8b8fa3;
+    --accent-blue: #3b82f6;
+    --accent-cyan: #06b6d4;
+    --accent-purple: #8b5cf6;
+    --accent-orange: #f59e0b;
+    --accent-green: #10b981;
+    --accent-red: #ef4444;
+    --accent-pink: #ec4899;
+    --accent-teal: #14b8a6;
+    --layer-net: #1e293b;
+    --layer-platform: #1a1f35;
+    --layer-agent: #1a2535;
+    --layer-gw: #1a2a25;
+    --layer-aws: #2a1a25;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 32px;
+    min-height: 100vh;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  .header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+
+  .header p {
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+
+  /* ======================== */
+  /* --- Tab Navigation ---   */
+  /* ======================== */
+  .tab-nav {
+    max-width: 1200px;
+    margin: 0 auto 28px;
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+  }
+
+  .tab-btn {
+    padding: 10px 24px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    bottom: -1px;
+    letter-spacing: 0.2px;
+  }
+
+  .tab-btn:hover {
+    color: var(--text);
+    background: rgba(139, 92, 246, 0.06);
+  }
+
+  .tab-btn.active {
+    color: var(--text);
+    background: var(--surface);
+    border-color: var(--border);
+    border-bottom: 1px solid var(--surface);
+  }
+
+  .tab-btn .tab-num {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 800;
+    border-radius: 50%;
+    margin-right: 8px;
+    background: rgba(139, 92, 246, 0.15);
+    color: var(--accent-purple);
+    vertical-align: middle;
+  }
+
+  .tab-btn.active .tab-num {
+    background: var(--accent-purple);
+    color: #fff;
+  }
+
+  .tab-panel {
+    display: none;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .tab-panel.active {
+    display: block;
+  }
+
+  /* ============================== */
+  /* --- Tab 1: Design Principles   */
+  /* ============================== */
+  .dp-hero {
+    text-align: center;
+    margin-bottom: 40px;
+    padding: 32px 24px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(139,92,246,0.06) 0%, rgba(59,130,246,0.06) 100%);
+  }
+
+  .dp-hero h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  .dp-hero p {
+    font-size: 13px;
+    color: var(--text-dim);
+    max-width: 700px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  .dp-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+
+  @media (max-width: 800px) { .dp-grid { grid-template-columns: 1fr; } }
+
+  .dp-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .dp-card:hover {
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.1);
+  }
+
+  .dp-card-header {
+    padding: 20px 24px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .dp-num {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--accent-purple);
+    line-height: 1;
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  .dp-card-header-text h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .dp-card-header-text .dp-subtitle {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .dp-card-body {
+    padding: 0 24px 20px;
+  }
+
+  .dp-card-body p {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.8;
+    margin-bottom: 14px;
+  }
+
+  .dp-visual {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    background: rgba(15, 17, 23, 0.6);
+  }
+
+  .dp-visual-title {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  /* Principle 01 visual */
+  .dp01-split {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .dp01-side {
+    flex: 1;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .dp01-side.control {
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+  }
+
+  .dp01-side.data {
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.25);
+  }
+
+  .dp01-side strong {
+    display: block;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .dp01-side.control strong { color: var(--accent-purple); }
+  .dp01-side.data strong { color: var(--accent-cyan); }
+
+  .dp01-side .dp01-items {
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .dp01-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    width: 24px;
+  }
+
+  /* Principle 02 visual */
+  .dp02-diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .dp02-gw-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .dp02-gw {
+    padding: 6px 14px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    text-align: center;
+    color: var(--accent-green);
+  }
+
+  .dp02-agents {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .dp02-agent {
+    padding: 5px 12px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    color: var(--accent-cyan);
+    position: relative;
+  }
+
+  .dp02-connector {
+    text-align: center;
+    font-size: 18px;
+    color: var(--text-dim);
+    line-height: 1;
+  }
+
+  /* Principle 03 visual */
+  .dp03-formula {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .dp03-term {
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .dp03-term.boundary {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: var(--accent-orange);
+  }
+
+  .dp03-term.prompt {
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    color: var(--accent-purple);
+  }
+
+  .dp03-term.gateway {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: var(--accent-green);
+  }
+
+  .dp03-term.model {
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: var(--accent-blue);
+  }
+
+  .dp03-term.identity {
+    background: rgba(6, 182, 212, 0.12);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    color: var(--accent-cyan);
+    font-weight: 800;
+  }
+
+  .dp03-op {
+    font-size: 16px;
+    color: var(--text-dim);
+    font-weight: 700;
+  }
+
+  /* Principle 04 visual */
+  .dp04-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .dp04-base {
+    padding: 10px 16px;
+    border-radius: 6px;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent-blue);
+  }
+
+  .dp04-inject-arrow {
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-dim);
+    line-height: 1;
+  }
+
+  .dp04-configs {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .dp04-config {
+    padding: 6px 12px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: var(--accent-orange);
+  }
+
+  .dp04-result-arrow {
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-dim);
+    line-height: 1;
+  }
+
+  .dp04-results {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .dp04-result {
+    padding: 6px 12px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    color: var(--accent-cyan);
+  }
+
+  /* Key Decisions table */
+  .dp-decisions {
+    margin-top: 8px;
+  }
+
+  .dp-decisions table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+
+  .dp-decisions th {
+    text-align: left;
+    padding: 8px 12px;
+    background: rgba(139, 92, 246, 0.08);
+    border: 1px solid var(--border);
+    color: var(--accent-purple);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  .dp-decisions td {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .dp-decisions tr:hover td {
+    background: rgba(139, 92, 246, 0.03);
+  }
+
+  /* ============================== */
+  /* --- Tab 2: Architecture ---    */
+  /* ============================== */
+  .diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+  }
+
+  .layer {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    margin-bottom: 0;
+  }
+
+  .layer + .layer { margin-top: -1px; }
+
+  .layer-label {
+    position: absolute;
+    top: -10px;
+    left: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 2px 10px;
+    border-radius: 4px;
+    z-index: 2;
+  }
+
+  .layer-net { background: var(--layer-net); }
+  .layer-net .layer-label { background: var(--accent-blue); color: #fff; }
+  .layer-platform { background: var(--layer-platform); }
+  .layer-platform .layer-label { background: var(--accent-purple); color: #fff; }
+  .layer-agent { background: var(--layer-agent); }
+  .layer-agent .layer-label { background: var(--accent-cyan); color: #000; }
+  .layer-gw { background: var(--layer-gw); }
+  .layer-gw .layer-label { background: var(--accent-green); color: #000; }
+  .layer-aws { background: var(--layer-aws); }
+  .layer-aws .layer-label { background: var(--accent-pink); color: #fff; }
+
+  .arrow-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 36px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .arrow-row .arrow-line {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .arrow-row .arrow-line .shaft { width: 2px; height: 14px; background: var(--text-dim); }
+  .arrow-row .arrow-line .head { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--text-dim); }
+  .arrow-row .arrow-label { font-size: 10px; color: var(--text-dim); margin-left: 10px; white-space: nowrap; }
+
+  .box-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+  .box {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    background: var(--surface);
+    flex: 1;
+    min-width: 160px;
+    position: relative;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .box:hover { border-color: var(--accent-blue); box-shadow: 0 0 12px rgba(59, 130, 246, 0.15); }
+
+  .box-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .box-title .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .box-detail { font-size: 11px; color: var(--text-dim); line-height: 1.6; }
+  .box-detail li { list-style: none; padding-left: 12px; position: relative; }
+  .box-detail li::before { content: '·'; position: absolute; left: 0; color: var(--text-dim); }
+
+  .box-badge {
+    position: absolute; top: 8px; right: 8px;
+    font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 3px; letter-spacing: 0.3px;
+  }
+
+  .box-detail li.post-mvp { color: #555a6e; position: relative; }
+  .box-detail li.post-mvp::before { content: '·'; color: #555a6e; }
+  .box-detail li.post-mvp::after {
+    content: 'post-MVP'; font-size: 8px; font-weight: 600; margin-left: 6px;
+    padding: 1px 4px; border-radius: 2px; background: rgba(100, 100, 120, 0.2); color: #666a7e; vertical-align: middle;
+  }
+
+  .post-mvp-inline {
+    font-size: 8px; font-weight: 600; margin-left: 4px; padding: 1px 4px;
+    border-radius: 2px; background: rgba(100, 100, 120, 0.2); color: #666a7e; vertical-align: middle;
+  }
+
+  .gw-box.post-mvp-gw { border-style: dashed; border-color: rgba(100, 100, 120, 0.35); opacity: 0.55; }
+  .gw-box.post-mvp-gw:hover { border-color: rgba(100, 100, 120, 0.5); }
+  .aws-chip.post-mvp-chip { border-style: dashed; opacity: 0.5; }
+
+  .user-entry { display: flex; justify-content: center; margin-bottom: 0; padding: 16px 0 8px; }
+  .user-icon {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+  }
+  .user-label { text-align: center; font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+
+  .net-chain { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; }
+  .net-node { padding: 8px 16px; font-size: 12px; font-weight: 600; border-radius: 6px; background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.25); white-space: nowrap; }
+  .net-arrow { font-size: 16px; color: var(--accent-blue); padding: 0 6px; flex-shrink: 0; }
+
+  .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .agent-box { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; background: var(--surface); position: relative; transition: border-color 0.2s, box-shadow 0.2s; }
+  .agent-box:hover { border-color: var(--accent-cyan); box-shadow: 0 0 12px rgba(6, 182, 212, 0.15); }
+  .agent-name { font-size: 12px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+  .agent-role { font-size: 10px; color: var(--text-dim); line-height: 1.5; }
+  .tier-badge { position: absolute; top: 6px; right: 8px; font-size: 8px; font-weight: 700; padding: 2px 5px; border-radius: 3px; background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); border: 1px solid rgba(6, 182, 212, 0.3); }
+  .agent-box.dynamic { border-style: dashed; border-color: rgba(139, 92, 246, 0.4); }
+  .agent-box.dynamic .tier-badge { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); border-color: rgba(139, 92, 246, 0.3); }
+
+  .a2a-section { margin-top: 14px; padding: 16px 18px; border: 1px dashed rgba(245, 158, 11, 0.4); border-radius: 8px; background: rgba(245, 158, 11, 0.04); }
+  .a2a-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-orange); margin-bottom: 12px; }
+  .a2a-flow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; }
+  .a2a-flow .a2a-node { padding: 4px 10px; border-radius: 4px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); white-space: nowrap; font-weight: 600; }
+  .a2a-flow .a2a-arrow { color: var(--accent-orange); font-size: 14px; flex-shrink: 0; }
+
+  .a2a-pipeline { display: flex; align-items: stretch; gap: 0; margin-top: 4px; }
+  .a2a-stage { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 12px; position: relative; }
+  .a2a-stage-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-orange); opacity: 0.7; }
+  .a2a-stage-box { padding: 8px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; text-align: center; white-space: nowrap; }
+  .a2a-stage-box.supervisor { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: var(--accent-orange); }
+  .a2a-stage-box.rca { background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.3); color: var(--accent-purple); }
+  .a2a-stage-box.gather { background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.3); color: var(--accent-cyan); }
+  .a2a-stage-box.synthesize { background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.3); color: var(--accent-purple); }
+  .a2a-stage-box.report { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--accent-green); }
+  .a2a-stage-desc { font-size: 9px; color: var(--text-dim); text-align: center; max-width: 140px; line-height: 1.4; }
+  .a2a-gather-group { display: flex; gap: 8px; }
+  .a2a-gather-group .a2a-stage-box { font-size: 10px; padding: 6px 10px; }
+  .a2a-parallel-label { font-size: 8px; color: var(--accent-cyan); font-weight: 600; margin-bottom: 2px; }
+  .a2a-stage-connector { display: flex; align-items: center; justify-content: center; padding: 0 4px; font-size: 20px; color: var(--text-dim); flex-shrink: 0; }
+  @media (max-width: 900px) { .a2a-pipeline { flex-wrap: wrap; justify-content: center; } }
+
+  .gw-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 900px) { .gw-grid { grid-template-columns: repeat(2, 1fr); } }
+  .gw-box { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; background: var(--surface); transition: border-color 0.2s; }
+  .gw-box:hover { border-color: var(--accent-green); }
+  .gw-box.mvp { border-color: rgba(16, 185, 129, 0.4); box-shadow: 0 0 8px rgba(16, 185, 129, 0.08); }
+  .gw-name { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+  .gw-count { font-size: 10px; color: var(--text-dim); }
+  .mvp-tag { display: inline-block; font-size: 8px; font-weight: 700; padding: 1px 4px; border-radius: 2px; background: var(--accent-green); color: #000; margin-left: 5px; vertical-align: middle; }
+
+  .aws-services { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .aws-chip { font-size: 11px; padding: 5px 12px; border-radius: 5px; background: rgba(236, 72, 153, 0.08); border: 1px solid rgba(236, 72, 153, 0.2); white-space: nowrap; }
+
+  .side-channel { margin-top: 16px; padding: 14px 16px; border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; background: rgba(99, 102, 241, 0.04); }
+  .side-channel-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #818cf8; margin-bottom: 8px; }
+  .side-channel-flow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; }
+  .sc-node { padding: 4px 10px; border-radius: 4px; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.25); white-space: nowrap; }
+  .sc-arrow { color: #818cf8; font-size: 14px; flex-shrink: 0; }
+
+  .harness-note { margin-top: 14px; display: flex; gap: 12px; }
+  .harness-tier { flex: 1; padding: 10px 14px; border-radius: 8px; font-size: 11px; }
+  .harness-tier.t1 { background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.25); }
+  .harness-tier.t2 { background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.25); }
+  .harness-tier strong { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+  .harness-tier.t1 strong { color: var(--accent-purple); }
+  .harness-tier.t2 strong { color: var(--accent-cyan); }
+  .harness-tier .h-items { color: var(--text-dim); line-height: 1.6; }
+
+  .dynamo-inset { margin-top: 14px; padding: 12px 14px; border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; background: rgba(245, 158, 11, 0.04); display: flex; align-items: flex-start; gap: 14px; }
+  .dynamo-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+  .dynamo-content { font-size: 11px; }
+  .dynamo-title { font-weight: 700; color: var(--accent-orange); margin-bottom: 4px; }
+  .dynamo-items { color: var(--text-dim); line-height: 1.7; }
+
+  .legend {
+    max-width: 1200px; margin: 24px auto 0;
+    display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;
+    font-size: 10px; color: var(--text-dim);
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>AIOps Multi Agent Platform v2</h1>
+  <p>Bedrock AgentCore + 2-Tier Harness + Domain Gateway (awsops 130 MCP Tools)</p>
+</div>
+
+<!-- =================== -->
+<!-- Tab Navigation       -->
+<!-- =================== -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('design')">
+    <span class="tab-num">1</span>Design Principles
+  </button>
+  <button class="tab-btn" onclick="switchTab('arch')">
+    <span class="tab-num">2</span>System Architecture
+  </button>
+</div>
+
+<!-- ======================================== -->
+<!-- Tab 1: Design Principles                  -->
+<!-- ======================================== -->
+<div id="tab-design" class="tab-panel active">
+
+  <div class="dp-hero">
+    <h2>Platform Design Principles</h2>
+    <p>
+      AIOps v2는 "Agent를 개발하는 것이 아니라, 검증된 부품으로 Domain Agent를 조립하는 Platform"이다.
+      아래 4가지 설계 원칙이 아키텍처 전체 의사결정의 근거가 된다.
+    </p>
+  </div>
+
+  <div class="dp-grid">
+
+    <!-- Principle 01 -->
+    <div class="dp-card">
+      <div class="dp-card-header">
+        <div class="dp-num">01</div>
+        <div class="dp-card-header-text">
+          <h3>Platform ≠ Agent</h3>
+          <div class="dp-subtitle">Control Plane과 Data Plane의 완전 분리</div>
+        </div>
+      </div>
+      <div class="dp-card-body">
+        <p>
+          Platform Layer(ECS Fargate)는 Agent의 생명주기를 관리하는 <strong>Control Plane</strong>이고,
+          Agent Runtime(Bedrock AgentCore)은 실제 추론과 도구 실행을 담당하는 <strong>Data Plane</strong>이다.
+          두 계층은 물리적으로 분리되어 있으며, boto3 <code>invoke_agent_runtime()</code>으로만 통신한다.
+          이 분리 덕분에 Platform 장애가 실행 중인 Agent에 영향을 주지 않고, Agent 수를 독립적으로 스케일링할 수 있다.
+        </p>
+        <div class="dp-visual">
+          <div class="dp-visual-title">Control Plane vs Data Plane</div>
+          <div class="dp01-split">
+            <div class="dp01-side control">
+              <strong>Control Plane</strong>
+              <div class="dp01-items">
+                ECS Fargate<br>
+                Platform API (FastAPI)<br>
+                Lifecycle CRUD<br>
+                Builder · Quality Gate<br>
+                SSE + Side-Channel
+              </div>
+            </div>
+            <div class="dp01-divider">&#x2194;</div>
+            <div class="dp01-side data">
+              <strong>Data Plane</strong>
+              <div class="dp01-items">
+                Bedrock AgentCore<br>
+                Agent Runtimes (microVM)<br>
+                LLM 추론<br>
+                MCP Tool 호출<br>
+                A2A 직접 위임
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Principle 02 -->
+    <div class="dp-card">
+      <div class="dp-card-header">
+        <div class="dp-num">02</div>
+        <div class="dp-card-header-text">
+          <h3>Tool 공유, Agent 독립</h3>
+          <div class="dp-subtitle">Agent는 추론하고, Tool은 실행한다 — 둘의 경계가 플랫폼의 핵심</div>
+        </div>
+      </div>
+      <div class="dp-card-body">
+        <p>
+          <strong>Agent = 판단(Reasoning)</strong>, <strong>Tool = 실행(Execution)</strong>으로 역할이 명확히 분리된다.
+          Agent는 LLM으로 "무엇을 할지" 결정하고, Tool은 결정된 작업을 원자적으로 실행하는 <strong>stateless 함수</strong>다.
+          각 Agent는 Config의 <code>gateways[]</code>와 <code>toolFilter</code>로 자신의 Context Boundary에 맞는 Tool만 선택적으로 바인딩한다.
+          Supervisor는 각 Agent의 <strong>Agent Card</strong>(capabilities, delegatesTo)를 읽어 사용자 의도에 맞는 Agent를 LLM으로 라우팅한다.
+        </p>
+        <div class="dp-visual">
+          <div class="dp-visual-title">Agent (Reasoning) vs Tool (Execution) — 경계와 바인딩</div>
+          <div class="dp02-diagram">
+            <!-- Agent vs Tool 대비 -->
+            <div style="display:flex;gap:12px;align-items:stretch;margin-bottom:14px;">
+              <div style="flex:1;padding:12px;border-radius:6px;background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.25);text-align:center;">
+                <strong style="color:var(--accent-cyan);font-size:12px;display:block;margin-bottom:6px;">Agent (추론 계층)</strong>
+                <div style="font-size:10px;color:var(--text-dim);line-height:1.6;">
+                  LLM 기반 판단<br>
+                  "무엇을(What)" 결정<br>
+                  Context-aware<br>
+                  Stateful (session)
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:center;flex-shrink:0;width:60px;font-size:10px;color:var(--text-dim);text-align:center;line-height:1.4;">
+                <div>selective<br>binding<br>&#x2194;</div>
+              </div>
+              <div style="flex:1;padding:12px;border-radius:6px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);text-align:center;">
+                <strong style="color:var(--accent-green);font-size:12px;display:block;margin-bottom:6px;">Tool (실행 계층)</strong>
+                <div style="font-size:10px;color:var(--text-dim);line-height:1.6;">
+                  Deterministic 함수<br>
+                  "어떻게(How)" 실행<br>
+                  Agent-agnostic<br>
+                  Stateless (atomic)
+                </div>
+              </div>
+            </div>
+
+            <!-- Tool 선택 메커니즘 -->
+            <div style="border:1px solid var(--border);border-radius:6px;padding:12px;background:rgba(15,17,23,0.5);margin-bottom:14px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent-orange);margin-bottom:10px;">Tool Selection Mechanism</div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:10px;">
+                <span style="padding:4px 8px;border-radius:4px;background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.3);color:var(--accent-cyan);font-weight:600;">Agent Config</span>
+                <span style="color:var(--text-dim);">→</span>
+                <span style="padding:4px 8px;border-radius:4px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:var(--accent-orange);font-weight:600;">gateways[ ]</span>
+                <span style="color:var(--text-dim);">→</span>
+                <span style="padding:4px 8px;border-radius:4px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:var(--accent-orange);font-weight:600;">toolFilter[ ]</span>
+                <span style="color:var(--text-dim);">→</span>
+                <span style="padding:4px 8px;border-radius:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:var(--accent-green);font-weight:600;">Bound Tools</span>
+              </div>
+              <div style="font-size:9px;color:var(--text-dim);margin-top:8px;line-height:1.5;">
+                예) RCA Agent: gateways=["monitoring"] + toolFilter=["get_metric_data","describe_alarms","get_log_events","list_metrics"] → 4 tools만 바인딩
+              </div>
+            </div>
+
+            <!-- Agent Card & Supervisor -->
+            <div style="border:1px solid var(--border);border-radius:6px;padding:12px;background:rgba(15,17,23,0.5);">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent-purple);margin-bottom:10px;">Supervisor Routing via Agent Card</div>
+              <div style="display:flex;gap:10px;align-items:stretch;">
+                <div style="flex:1;padding:10px;border-radius:5px;border:1px solid rgba(139,92,246,0.3);background:rgba(139,92,246,0.06);font-size:10px;">
+                  <strong style="color:var(--accent-purple);display:block;margin-bottom:4px;">Supervisor</strong>
+                  <span style="color:var(--text-dim);line-height:1.5;">Agent Registry 로드<br>→ LLM으로 의도 분류<br>→ 최적 Agent 라우팅</span>
+                </div>
+                <div style="display:flex;align-items:center;font-size:10px;color:var(--text-dim);flex-shrink:0;">reads →</div>
+                <div style="flex:2;padding:10px;border-radius:5px;border:1px solid rgba(245,158,11,0.3);background:rgba(245,158,11,0.06);font-size:10px;">
+                  <strong style="color:var(--accent-orange);display:block;margin-bottom:4px;">Agent Card (DynamoDB)</strong>
+                  <span style="color:var(--text-dim);line-height:1.6;">
+                    <span style="color:var(--text);font-weight:600;">name</span>: "RCA Agent"<br>
+                    <span style="color:var(--text);font-weight:600;">capabilities</span>: ["근본 원인 분석", "메트릭 조회"]<br>
+                    <span style="color:var(--text);font-weight:600;">delegatesTo</span>: ["incident", "observability", "report"]
+                  </span>
+                </div>
+              </div>
+              <div style="font-size:9px;color:var(--text-dim);margin-top:8px;line-height:1.5;">
+                Agent Card는 Agent가 "할 수 있는 것"의 선언 — Supervisor는 코드 변경 없이 새 Agent Card만 등록하면 자동으로 라우팅 대상에 포함
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Principle 03 -->
+    <div class="dp-card">
+      <div class="dp-card-header">
+        <div class="dp-num">03</div>
+        <div class="dp-card-header-text">
+          <h3>Agent = DDD Bounded Context</h3>
+          <div class="dp-subtitle">사용자가 정의한 Context Boundary가 Agent의 범위를 결정</div>
+        </div>
+      </div>
+      <div class="dp-card-body">
+        <p>
+          Agent는 코드가 아니라 <strong>Config</strong>로 정의된다.
+          Builder Agent와의 대화에서 사용자가 Context Boundary를 정의하면,
+          Platform이 System Prompt + Gateway/Tool 바인딩 + Model 선택을 자동으로 조립한다.
+          이 세 가지가 Agent의 정체성이며, DDD의 Bounded Context 개념을 Agent 설계에 적용한 것이다.
+        </p>
+        <div class="dp-visual">
+          <div class="dp-visual-title">Agent Identity Formula</div>
+          <div class="dp03-formula">
+            <div class="dp03-term boundary">Context Boundary</div>
+            <span class="dp03-op">&#x2192;</span>
+            <div class="dp03-term prompt">System Prompt</div>
+            <span class="dp03-op">+</span>
+            <div class="dp03-term gateway">Gateway Binding</div>
+            <span class="dp03-op">+</span>
+            <div class="dp03-term model">Model</div>
+            <span class="dp03-op">=</span>
+            <div class="dp03-term identity">Agent Identity</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Principle 04 -->
+    <div class="dp-card">
+      <div class="dp-card-header">
+        <div class="dp-num">04</div>
+        <div class="dp-card-header-text">
+          <h3>Base Image + Config Injection</h3>
+          <div class="dp-subtitle">모든 Agent는 동일한 Base Image, 차이는 DynamoDB Config에서 주입</div>
+        </div>
+      </div>
+      <div class="dp-card-body">
+        <p>
+          모든 Agent Runtime은 <strong>동일한 Docker Base Image</strong>(Strands SDK + Agent Harness)를 사용한다.
+          Agent 간 차이는 오직 DynamoDB에 저장된 Config(System Prompt, Gateway 바인딩, Model, Harness 설정)에 의해 결정된다.
+          새 Agent를 만들 때 코드를 작성하지 않고, Config만 정의하면 Platform이 동일한 Base Image로 Runtime을 프로비저닝한다.
+        </p>
+        <div class="dp-visual">
+          <div class="dp-visual-title">One Image, Many Agents</div>
+          <div class="dp04-stack">
+            <div class="dp04-base">Base Image (Strands SDK + Agent Harness + Runner)</div>
+            <div class="dp04-inject-arrow">&#x2191; Config Injection (환경변수 AGENT_ID → DynamoDB 조회) &#x2191;</div>
+            <div class="dp04-configs">
+              <div class="dp04-config">RCA Config</div>
+              <div class="dp04-config">Incident Config</div>
+              <div class="dp04-config">Observability Config</div>
+              <div class="dp04-config">Report Config</div>
+            </div>
+            <div class="dp04-result-arrow">&#x2193;</div>
+            <div class="dp04-results">
+              <div class="dp04-result">RCA Runtime</div>
+              <div class="dp04-result">Incident Runtime</div>
+              <div class="dp04-result">Observability Runtime</div>
+              <div class="dp04-result">Report Runtime</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /dp-grid -->
+
+  <!-- Key Decisions -->
+  <div class="dp-decisions">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30%">설계 결정</th>
+          <th style="width:35%">선택</th>
+          <th style="width:35%">근거</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Agent 정의 방식</td>
+          <td>Config JSON (DynamoDB)</td>
+          <td>코드 변경 없이 Agent 생성/수정. Builder 대화 → Config 자동 생성</td>
+        </tr>
+        <tr>
+          <td>Agent 간 통신</td>
+          <td>A2A (invoke_agent_runtime 직접)</td>
+          <td>Platform API 우회 → 레이턴시 감소. Delegation depth 최대 2</td>
+        </tr>
+        <tr>
+          <td>Tool 제공 방식</td>
+          <td>Domain Gateway (MCP)</td>
+          <td>awsops 130 Tool 코드 변경 없이 재사용. Gateway 단위 격리</td>
+        </tr>
+        <tr>
+          <td>실시간 UX</td>
+          <td>Side-Channel (DynamoDB 폴링 → SSE)</td>
+          <td>invoke_agent_runtime() 블로킹 제약 우회. 500ms 간격 폴링</td>
+        </tr>
+        <tr>
+          <td>안전 장치</td>
+          <td>2-Tier Harness</td>
+          <td>Tier 1(공통 정책) + Tier 2(Agent별 커스텀). 관심사 분리</td>
+        </tr>
+        <tr>
+          <td>Agent Runtime 환경</td>
+          <td>Bedrock AgentCore (microVM)</td>
+          <td>관리형 서비스. VPC 모드로 보안 격리. 자동 스케일링</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div><!-- /tab-design -->
+
+<!-- ======================================== -->
+<!-- Tab 2: System Architecture                -->
+<!-- ======================================== -->
+<div id="tab-arch" class="tab-panel">
+
+  <div class="user-entry">
+    <div>
+      <div class="user-icon">&#x1F464;</div>
+      <div class="user-label">User (Browser)</div>
+    </div>
+  </div>
+
+  <div class="arrow-row">
+    <div class="arrow-line"><div class="shaft"></div><div class="head"></div></div>
+    <span class="arrow-label">HTTPS</span>
+  </div>
+
+  <div class="diagram">
+
+  <div class="layer layer-net">
+    <span class="layer-label">Layer 1 — Networking &amp; Auth</span>
+    <div class="net-chain">
+      <div class="net-node">CloudFront</div>
+      <span class="net-arrow">&#x2192;</span>
+      <div class="net-node">ALB (HTTPS)</div>
+      <span class="net-arrow">&#x2192;</span>
+      <div class="net-node">Cognito (MFA)</div>
+      <span class="net-arrow">&#x2192;</span>
+      <div class="net-node">VPC</div>
+    </div>
+  </div>
+
+  <div class="arrow-row">
+    <div class="arrow-line"><div class="shaft"></div><div class="head"></div></div>
+  </div>
+
+  <div class="layer layer-platform">
+    <span class="layer-label">Layer 2 — ECS Fargate / Platform Layer</span>
+    <div class="box-row">
+      <div class="box">
+        <div class="box-title"><span class="dot" style="background:var(--accent-purple)"></span>Platform UI</div>
+        <div class="box-badge" style="background:rgba(139,92,246,0.15);color:var(--accent-purple)">Next.js 14</div>
+        <ul class="box-detail">
+          <li>Builder Chat</li>
+          <li>Agent Registry</li>
+          <li>Workflow Design</li>
+          <li>Playground (SSE)</li>
+          <li>Dashboard <span class="post-mvp-inline">static mock</span></li>
+        </ul>
+      </div>
+      <div class="box">
+        <div class="box-title"><span class="dot" style="background:var(--accent-blue)"></span>Platform API</div>
+        <div class="box-badge" style="background:rgba(59,130,246,0.15);color:var(--accent-blue)">FastAPI</div>
+        <ul class="box-detail">
+          <li>Agent Lifecycle CRUD</li>
+          <li>Builder Agent (내장)</li>
+          <li>Gateway/Tool Catalog <span class="post-mvp-inline">seed only</span></li>
+          <li>Chat/SSE Handler</li>
+          <li>Side-Channel Poller</li>
+        </ul>
+      </div>
+      <div class="box">
+        <div class="box-title"><span class="dot" style="background:var(--accent-orange)"></span>Platform Harness</div>
+        <div class="box-badge" style="background:rgba(245,158,11,0.15);color:var(--accent-orange)">Tier 1</div>
+        <ul class="box-detail">
+          <li>Deploy Quality Gate</li>
+          <li>Audit Log <span class="post-mvp-inline">stub</span></li>
+          <li class="post-mvp">Policy Engine</li>
+          <li class="post-mvp">Cost Guard</li>
+          <li class="post-mvp">Permission Matrix</li>
+        </ul>
+      </div>
+    </div>
+    <div class="side-channel">
+      <div class="side-channel-title">SSE Side-Channel</div>
+      <div class="side-channel-flow">
+        <span class="sc-node">Agent Runtime</span>
+        <span class="sc-arrow">write →</span>
+        <span class="sc-node">DynamoDB EVENT#{ulid}</span>
+        <span class="sc-arrow">← 500ms poll →</span>
+        <span class="sc-node">Platform API</span>
+        <span class="sc-arrow">SSE →</span>
+        <span class="sc-node">Frontend (실시간 Activity)</span>
+      </div>
+      <div style="font-size:9px;color:var(--text-dim);margin-top:8px;line-height:1.5;">
+        invoke_agent_runtime()은 블로킹 호출 — Agent 실행 중간 상태를 Frontend에 전달하기 위해 DynamoDB를 매개로 비동기 이벤트 스트림 구현
+      </div>
+    </div>
+    <div class="harness-note">
+      <div class="harness-tier t1">
+        <strong>Tier 1 — Platform Harness</strong>
+        <div class="h-items">모든 Agent 호출에 공통 적용<br>Quality Gate · Audit(stub) · <span class="post-mvp-inline">Rate Limit</span> · <span class="post-mvp-inline">Permission</span> · <span class="post-mvp-inline">Cost Guard</span></div>
+      </div>
+      <div class="harness-tier t2">
+        <strong>Tier 2 — Agent Harness</strong>
+        <div class="h-items">각 Agent Runtime 내부 커스텀<br>Pre-Hook · Post-Hook · HITL · Evaluator</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row">
+    <div class="arrow-line"><div class="shaft"></div><div class="head"></div></div>
+    <span class="arrow-label">boto3 invoke_agent_runtime() — SigV4, VPC PrivateLink</span>
+  </div>
+
+  <div class="layer layer-agent">
+    <span class="layer-label">Layer 3 — Bedrock AgentCore / Agent Runtimes</span>
+    <div class="agent-grid">
+      <div class="agent-box">
+        <div class="agent-name"><span class="dot" style="background:var(--accent-orange);width:7px;height:7px;border-radius:50%;flex-shrink:0"></span>Supervisor</div>
+        <div class="agent-role">Intent Classification<br>Agent Routing</div>
+        <div class="tier-badge">Tier 2</div>
+      </div>
+      <div class="agent-box">
+        <div class="agent-name"><span class="dot" style="background:var(--accent-red);width:7px;height:7px;border-radius:50%;flex-shrink:0"></span>Incident Agent</div>
+        <div class="agent-role">Monitoring GW<br>Incident DynamoDB CRUD</div>
+        <div class="tier-badge">Tier 2</div>
+      </div>
+      <div class="agent-box">
+        <div class="agent-name"><span class="dot" style="background:var(--accent-teal);width:7px;height:7px;border-radius:50%;flex-shrink:0"></span>Observability Agent</div>
+        <div class="agent-role">Monitoring GW<br>Container GW</div>
+        <div class="tier-badge">Tier 2</div>
+      </div>
+      <div class="agent-box">
+        <div class="agent-name"><span class="dot" style="background:var(--accent-green);width:7px;height:7px;border-radius:50%;flex-shrink:0"></span>Report Agent</div>
+        <div class="agent-role">Jinja2 + Chart.js<br>S3 + CloudFront URL</div>
+        <div class="tier-badge">Tier 2</div>
+      </div>
+      <div class="agent-box dynamic">
+        <div class="agent-name"><span class="dot" style="background:var(--accent-purple);width:7px;height:7px;border-radius:50%;flex-shrink:0"></span>RCA Agent</div>
+        <div class="agent-role">Demo: Platform에서<br>동적 생성</div>
+        <div class="tier-badge">Tier 2</div>
+      </div>
+      <div class="agent-box dynamic">
+        <div class="agent-name"><span class="dot" style="background:var(--text-dim);width:7px;height:7px;border-radius:50%;flex-shrink:0"></span>Agent #N</div>
+        <div class="agent-role">Platform에서<br>동적 생성 가능</div>
+        <div class="tier-badge">Tier 2</div>
+      </div>
+    </div>
+    <div class="a2a-section">
+      <div class="a2a-title">Agent Delegation — RCA Demo Scenario (AgentCore InvokeAgent API, max depth 2)</div>
+      <div style="font-size:9px; color:var(--text-dim); margin-bottom:10px; padding:4px 8px; background:rgba(245,158,11,0.05); border-radius:4px; border-left:2px solid var(--accent-orange);">
+        Note: This delegation uses AWS Bedrock AgentCore InvokeAgent API, not the <a href="https://github.com/google-a2a/A2A" style="color:var(--accent-cyan);" target="_blank">Google A2A Protocol</a>. See docs/a2a-implementation.md for comparison.
+      </div>
+
+      <div class="a2a-pipeline">
+        <!-- Step 0: Supervisor routing -->
+        <div class="a2a-stage">
+          <div class="a2a-stage-label">Routing</div>
+          <div class="a2a-stage-box supervisor">Supervisor</div>
+          <div class="a2a-stage-desc">의도 분류<br>→ RCA Agent 선택</div>
+        </div>
+
+        <div class="a2a-stage-connector">&#x2192;</div>
+
+        <!-- Step 1: RCA direct tools -->
+        <div class="a2a-stage">
+          <div class="a2a-stage-label">Step 1 — 직접</div>
+          <div class="a2a-stage-box rca">RCA Agent</div>
+          <div class="a2a-stage-desc">Monitoring GW 직접 호출<br>CPU 95% 급등 + 알람 2건</div>
+        </div>
+
+        <div class="a2a-stage-connector">&#x2192;</div>
+
+        <!-- Step 2-3: Parallel gather -->
+        <div class="a2a-stage">
+          <div class="a2a-stage-label">Step 2-3 — 정보 수집</div>
+          <div class="a2a-parallel-label">A2A (순차/병렬)</div>
+          <div class="a2a-gather-group">
+            <div class="a2a-stage-box gather">Incident<br>Agent</div>
+            <div class="a2a-stage-box gather">Observability<br>Agent</div>
+          </div>
+          <div class="a2a-stage-desc">유사 인시던트 2건<br>ECS Task 변경(14:25) 발견</div>
+        </div>
+
+        <div class="a2a-stage-connector">&#x2192;</div>
+
+        <!-- Step 4: RCA synthesis -->
+        <div class="a2a-stage">
+          <div class="a2a-stage-label">Step 4 — 종합</div>
+          <div class="a2a-stage-box synthesize">RCA Agent</div>
+          <div class="a2a-stage-desc">수집 정보 종합 분석<br>"14:25 변경이 원인"</div>
+        </div>
+
+        <div class="a2a-stage-connector">&#x2192;</div>
+
+        <!-- Step 5: Report -->
+        <div class="a2a-stage">
+          <div class="a2a-stage-label">Step 5 — 보고서</div>
+          <div class="a2a-stage-box report">Report Agent</div>
+          <div class="a2a-stage-desc">HTML 보고서 생성<br>S3 → CloudFront URL</div>
+        </div>
+      </div>
+
+      <div style="font-size:10px;color:var(--text-dim);margin-top:10px;text-align:center">
+        Platform API 비경유 (AgentCore Runtime 간 직접 호출) &nbsp;|&nbsp; Supervisor(depth 0) → RCA(depth 1) → Incident/Observability/Report(depth 2)
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row">
+    <div class="arrow-line"><div class="shaft"></div><div class="head"></div></div>
+    <span class="arrow-label">MCP Protocol</span>
+  </div>
+
+  <div class="layer layer-gw">
+    <span class="layer-label">Layer 4 — Domain Gateways (awsops 8 GW · 130 MCP Tools)</span>
+    <div class="gw-grid">
+      <div class="gw-box mvp"><div class="gw-name">Monitoring <span class="mvp-tag">MVP</span></div><div class="gw-count">16 tools — CloudWatch (11) + CloudTrail (5)</div></div>
+      <div class="gw-box mvp"><div class="gw-name">Container <span class="mvp-tag">MVP</span></div><div class="gw-count">24 tools — EKS (9) + ECS (3) + Istio (12)</div></div>
+      <div class="gw-box mvp"><div class="gw-name">Security <span class="mvp-tag">MVP</span></div><div class="gw-count">14 tools — IAM MCP</div></div>
+      <div class="gw-box mvp"><div class="gw-name">Network <span class="mvp-tag">MVP</span></div><div class="gw-count">17 tools — Network (15) + Reach (1) + Flow (1)</div></div>
+      <div class="gw-box post-mvp-gw"><div class="gw-name">Cost <span class="post-mvp-inline">post-MVP</span></div><div class="gw-count">14 tools — Cost Explorer, FinOps</div></div>
+      <div class="gw-box post-mvp-gw"><div class="gw-name">Data <span class="post-mvp-inline">post-MVP</span></div><div class="gw-count">24 tools — DynamoDB, RDS, ElastiCache, MSK</div></div>
+      <div class="gw-box post-mvp-gw"><div class="gw-name">IaC <span class="post-mvp-inline">post-MVP</span></div><div class="gw-count">12 tools — CloudFormation, CDK, Terraform</div></div>
+      <div class="gw-box post-mvp-gw"><div class="gw-name">Ops <span class="post-mvp-inline">post-MVP</span></div><div class="gw-count">9 tools — AWS Knowledge, Core, Steampipe</div></div>
+    </div>
+  </div>
+
+  <div class="arrow-row">
+    <div class="arrow-line"><div class="shaft"></div><div class="head"></div></div>
+    <span class="arrow-label">Lambda invoke</span>
+  </div>
+
+  <div class="layer layer-aws">
+    <span class="layer-label">Layer 5 — AWS Services &amp; Data</span>
+    <div class="aws-services">
+      <span class="aws-chip">CloudWatch</span>
+      <span class="aws-chip">CloudTrail</span>
+      <span class="aws-chip">DynamoDB</span>
+      <span class="aws-chip">EKS</span>
+      <span class="aws-chip">ECS</span>
+      <span class="aws-chip">S3</span>
+      <span class="aws-chip">IAM</span>
+      <span class="aws-chip">VPC</span>
+      <span class="aws-chip post-mvp-chip">X-Ray</span>
+      <span class="aws-chip post-mvp-chip">Config</span>
+      <span class="aws-chip post-mvp-chip">Grafana</span>
+      <span class="aws-chip post-mvp-chip">EventBridge</span>
+    </div>
+    <div class="dynamo-inset">
+      <div class="dynamo-icon">&#x1F4BE;</div>
+      <div class="dynamo-content">
+        <div class="dynamo-title">DynamoDB — Single Table Design</div>
+        <div class="dynamo-items">
+          AGENT#{id}/CONFIG &nbsp;·&nbsp; AGENT#{id}/CARD &nbsp;·&nbsp; AGENT#{id}/RUNTIME<br>
+          SESSION#{id}/META &nbsp;·&nbsp; SESSION#{id}/EVENT#{ulid}<br>
+          GATEWAY#{id}/CONFIG &nbsp;·&nbsp; GATEWAY#{id}/TOOL#{name}<br>
+          SUPERVISOR/AGENT#{id}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /diagram -->
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--accent-blue)"></div> Networking</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--accent-purple)"></div> Platform (ECS)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--accent-cyan)"></div> Agent Runtime</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--accent-orange)"></div> A2A / Harness</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--accent-green)"></div> Gateway (MVP)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:var(--accent-pink)"></div> AWS Services</div>
+    <div class="legend-item"><div class="legend-swatch" style="border:1px dashed var(--accent-purple);background:transparent"></div> Dynamic Agent</div>
+    <div class="legend-item"><div class="legend-swatch" style="border:1px dashed rgba(100,100,120,0.5);background:transparent;opacity:0.6"></div> Post-MVP</div>
+  </div>
+
+</div><!-- /tab-arch -->
+
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (tab === 'design') {
+    document.getElementById('tab-design').classList.add('active');
+    document.querySelectorAll('.tab-btn')[0].classList.add('active');
+  } else {
+    document.getElementById('tab-arch').classList.add('active');
+    document.querySelectorAll('.tab-btn')[1].classList.add('active');
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+
+</body>
+</html>
