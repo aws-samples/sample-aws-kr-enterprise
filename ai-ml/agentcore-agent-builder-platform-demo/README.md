@@ -88,9 +88,9 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 - Bedrock AgentCore 사용 가능한 AWS 계정
 - 배포자 자격증명은 **Admin/PowerUser급 권한** 필요 — Terraform(VPC/IAM/ECS 생성)에 더해, Phase 7에서 Lambda 실행 role을 자동 생성하기 위한 `iam:CreateRole` / `iam:AttachRolePolicy` 권한 포함
 - Terraform >= 1.5.0
-- Docker
 - Node.js >= 18
 - AWS CLI v2
+- (로컬 Docker 불필요) 컨테이너 이미지는 Phase 2에서 **CodeBuild**가 클라우드에서 빌드합니다
 - (선택) custom domain을 사용하려면 ACM wildcard 인증서 + Route53 hosted zone
 
 ## 기술 스택
@@ -280,9 +280,9 @@ agentcore-agent-builder-platform-demo/
 - AWS Account with Bedrock AgentCore access
 - Deployer credentials with **Admin/PowerUser-level permissions** — beyond Terraform (VPC/IAM/ECS), Phase 7 auto-creates the Lambda execution role, requiring `iam:CreateRole` / `iam:AttachRolePolicy`
 - Terraform >= 1.5.0
-- Docker
 - Node.js >= 18
 - AWS CLI v2 configured
+- (No local Docker required) container images are built in the cloud by **CodeBuild** in Phase 2
 - (Optional) ACM wildcard certificate + Route53 hosted zone for custom domain
 
 ## Quick Start
