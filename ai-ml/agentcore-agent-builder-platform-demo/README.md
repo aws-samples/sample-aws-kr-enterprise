@@ -24,7 +24,7 @@
 **주요 기능**
 
 - **AI 에이전트 생성/관리** — 웹 UI에서 에이전트 워크플로우를 시각적으로 설계하고 카드(Card) 단위로 등록
-- **MCP 도구 연결** — Lambda 기반 Gateway를 통해 운영 도구를 재사용 가능한 부품으로 제공
+- **MCP 도구 연결** — 8개 도메인에 걸친 19개 MCP Lambda 도구를 Gateway를 통해 재사용 가능한 부품으로 제공
 - **실시간 관측성** — X-Ray 분산 트레이싱, CloudWatch 로그, OTEL 스팬으로 에이전트 호출 흐름 가시화
 - **자동 인시던트 대응** — CloudWatch 알람 → EventBridge → RCA 에이전트 자동 실행 → S3 보고서 저장
 
@@ -59,8 +59,14 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 | 2 | **Container Image Build** — CodeBuild로 4개 이미지 빌드 후 ECR push | ~5분 |
 | 3 | **Seed Data** — DynamoDB에 에이전트 메타데이터, 게이트웨이 설정 시드 | ~10초 |
 | 4 | **ECS Redeployment** — 새 이미지로 platform-api, frontend 서비스 재시작 | ~3분 |
-| 5 | **AgentCore Agents** — AgentCore Runtime 등록 (선택, Preview API) | ~2분 |
-| 6 | **MCP Gateways** — Lambda 기반 MCP Gateway 연결 (선택) | ~1분 |
+| 5 | **AgentCore Agents** — AgentCore Runtime 등록 (Preview API) | ~2분 |
+| 6 | **MCP Gateways** — 8개 Lambda 기반 MCP Gateway 연결 | ~1분 |
+| 7 | **MCP Lambda Tools** — 19개 Lambda 기반 MCP 도구 배포 | ~2분 |
+| 8 | **Gateway Targets** — 8개 Gateway에 도구 target 등록 | ~1분 |
+
+> **참고:** Phase 5~8이 없어도 웹 UI는 정상적으로 뜹니다. 다만 에이전트가 **실제 MCP 도구를 호출하는 모습**을 보려면 Phase 7(도구 배포)과 Phase 8(target 등록)까지 완료해야 합니다.
+>
+> **Cross-account:** 기본값은 배포 계정 내에서 동작합니다. cross-account 진단이 필요하면 대상 계정에 `AWSopsReadOnlyRole`을 별도로 setup 하세요.
 
 ### Agent Deploy 동작 원리
 
@@ -80,6 +86,7 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ## 사전 준비물
 
 - Bedrock AgentCore 사용 가능한 AWS 계정
+- 배포자 자격증명은 **Admin/PowerUser급 권한** 필요 — Terraform(VPC/IAM/ECS 생성)에 더해, Phase 7에서 Lambda 실행 role을 자동 생성하기 위한 `iam:CreateRole` / `iam:AttachRolePolicy` 권한 포함
 - Terraform >= 1.5.0
 - Docker
 - Node.js >= 18
@@ -93,7 +100,7 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 | Frontend | Next.js 14, Tailwind CSS |
 | Backend API | FastAPI (Python) |
 | Agent Runtime | Strands SDK on Bedrock AgentCore |
-| MCP Tools | AWS Lambda (Python) |
+| MCP Tools | 19 MCP Lambda tools across 8 domains (Python) |
 | Compute | ECS Fargate |
 | CDN/Auth | CloudFront + Cognito |
 | Data | DynamoDB, S3 |
@@ -154,7 +161,9 @@ agentcore-agent-builder-platform-demo/
 │   │   ├── api/           # FastAPI — Platform API
 │   │   └── ui/            # Next.js 14 — Platform UI
 │   ├── agent-runtime/     # Strands SDK Base Image
-│   └── tools/             # MCP Lambda Tool 샘플 3종
+│   └── tools/             # 19 MCP Lambda 도구 + cross_account.py
+├── docs/
+│   └── iam-policies/      # Lambda 실행 role IAM 정책 문서 (가이드 + JSON)
 ├── iac/
 │   ├── modules/           # 8개 Terraform 모듈
 │   │   ├── network/       # VPC, Subnets, NAT, VPC Endpoints
@@ -167,11 +176,12 @@ agentcore-agent-builder-platform-demo/
 │   │   └── build/         # CodeBuild (x86 + arm64)
 │   └── envs/dev/          # Root module (환경 설정)
 └── scripts/
-    ├── deploy-all.sh      # 한 번에 전체 배포
-    ├── build-images.sh    # CodeBuild 이미지 빌드 실행
-    ├── deploy-agents.sh   # AgentCore 에이전트 등록
-    ├── deploy-gateways.sh # MCP Gateway 설정
-    ├── seed-dynamodb.sh   # 초기 데이터 시드
+    ├── deploy-all.sh          # 한 번에 전체 배포
+    ├── build-images.sh        # CodeBuild 이미지 빌드 실행
+    ├── deploy-agents.sh       # AgentCore 에이전트 등록
+    ├── deploy-gateways.sh     # MCP Gateway 설정
+    ├── deploy-lambda-tools.sh # 19개 MCP Lambda 도구 배포 (IAM role 생성 포함)
+    ├── seed-dynamodb.sh       # 초기 데이터 시드
     └── register-gateway-targets.py
 ```
 
@@ -241,7 +251,9 @@ agentcore-agent-builder-platform-demo/
 │   │   ├── api/           # FastAPI — Platform API
 │   │   └── ui/            # Next.js 14 — Platform UI
 │   ├── agent-runtime/     # Strands SDK Base Image
-│   └── tools/             # 3 sample MCP Lambda tools
+│   └── tools/             # 19 MCP Lambda tools + cross_account.py
+├── docs/
+│   └── iam-policies/      # Lambda execution role IAM policy docs (guide + JSON)
 ├── iac/
 │   ├── modules/           # 8 Terraform modules
 │   │   ├── network/       # VPC, Subnets, NAT, VPC Endpoints
@@ -254,17 +266,19 @@ agentcore-agent-builder-platform-demo/
 │   │   └── build/         # CodeBuild (x86 + arm64)
 │   └── envs/dev/          # Root module (environment config)
 └── scripts/
-    ├── deploy-all.sh      # One-shot full deployment
-    ├── build-images.sh    # CodeBuild image build trigger
-    ├── deploy-agents.sh   # AgentCore agent registration
-    ├── deploy-gateways.sh # MCP Gateway setup
-    ├── seed-dynamodb.sh   # Initial data seeding
+    ├── deploy-all.sh          # One-shot full deployment
+    ├── build-images.sh        # CodeBuild image build trigger
+    ├── deploy-agents.sh       # AgentCore agent registration
+    ├── deploy-gateways.sh     # MCP Gateway setup
+    ├── deploy-lambda-tools.sh # Deploys 19 MCP Lambda tools (creates IAM role)
+    ├── seed-dynamodb.sh       # Initial data seeding
     └── register-gateway-targets.py
 ```
 
 ## Prerequisites
 
 - AWS Account with Bedrock AgentCore access
+- Deployer credentials with **Admin/PowerUser-level permissions** — beyond Terraform (VPC/IAM/ECS), Phase 7 auto-creates the Lambda execution role, requiring `iam:CreateRole` / `iam:AttachRolePolicy`
 - Terraform >= 1.5.0
 - Docker
 - Node.js >= 18
@@ -296,8 +310,14 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 | 2 | **Container Image Build** — Builds 4 images via CodeBuild, pushes to ECR | ~5 min |
 | 3 | **Seed Data** — Populates DynamoDB with agent metadata and gateway configs | ~10 sec |
 | 4 | **ECS Redeployment** — Restarts platform-api and frontend with new images | ~3 min |
-| 5 | **AgentCore Agents** — Registers agent runtimes (optional, Preview API) | ~2 min |
-| 6 | **MCP Gateways** — Configures Lambda-backed MCP Gateways (optional) | ~1 min |
+| 5 | **AgentCore Agents** — Registers agent runtimes (Preview API) | ~2 min |
+| 6 | **MCP Gateways** — Configures 8 Lambda-backed MCP Gateways | ~1 min |
+| 7 | **MCP Lambda Tools** — Deploys 19 Lambda-backed MCP tools | ~2 min |
+| 8 | **Gateway Targets** — Registers tool targets on the 8 gateways | ~1 min |
+
+> **Note:** The web UI comes up fine even without Phases 5–8. However, to see agents make **real MCP tool calls**, you need to complete Phase 7 (tool deployment) and Phase 8 (target registration).
+>
+> **Cross-account:** Defaults to operating within the deployment account. For cross-account diagnostics, set up an `AWSopsReadOnlyRole` separately in the target account.
 
 ### How Agent Deploy Works
 
@@ -331,9 +351,9 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 - Agent status monitoring dashboard
 
 ### MCP Gateway Integration
-- 3 pre-built sample tools — extendable with additional Lambda-backed MCP tools
+- 19 MCP Lambda tools across 8 domains — extendable with additional Lambda-backed MCP tools
 - Lambda-based tool execution
-- Cross-account resource access support
+- Cross-account resource access support (defaults to single-account; use `AWSopsReadOnlyRole` for cross-account)
 
 ### Observability
 - X-Ray distributed tracing for agent invocations

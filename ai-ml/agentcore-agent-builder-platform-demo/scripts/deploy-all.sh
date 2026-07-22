@@ -116,6 +116,26 @@ echo "✓ Phase 6 complete — Gateways configured"
 echo ""
 
 ################################################################################
+# Phase 7: MCP Lambda Tools
+################################################################################
+
+echo "▶ Phase 7: Deploy MCP Lambda Tools"
+cd "$SCRIPT_DIR"
+bash deploy-lambda-tools.sh
+echo "✓ Phase 7 complete — Lambda tools deployed"
+echo ""
+
+################################################################################
+# Phase 8: Gateway Targets
+################################################################################
+
+echo "▶ Phase 8: Register Gateway Targets"
+cd "$SCRIPT_DIR"
+AWS_REGION="$AWS_REGION" ACCOUNT_ID="$ACCOUNT_ID" python3 register-gateway-targets.py
+echo "✓ Phase 8 complete — Gateway targets registered"
+echo ""
+
+################################################################################
 # Done
 ################################################################################
 

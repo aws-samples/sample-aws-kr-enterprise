@@ -1,0 +1,61 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "RdsDataReadOnlySql",
+      "Effect": "Allow",
+      "Action": [
+        "rds-data:ExecuteStatement",
+        "rds-data:BatchExecuteStatement"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RdsDataApiSecretRead",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:*:*:secret:rds-*",
+        "arn:aws:secretsmanager:*:*:secret:rds!*",
+        "arn:aws:secretsmanager:*:*:secret:aurora-*"
+      ]
+    },
+    {
+      "Sid": "CloudWatchLogsInsightsQuery",
+      "Effect": "Allow",
+      "Action": [
+        "logs:StartQuery",
+        "logs:GetQueryResults",
+        "logs:StopQuery"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CloudTrailLakeQuery",
+      "Effect": "Allow",
+      "Action": [
+        "cloudtrail:StartQuery",
+        "cloudtrail:GetQueryResults"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReachabilityAnalyzer",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateNetworkInsightsPath",
+        "ec2:StartNetworkInsightsAnalysis",
+        "ec2:CreateTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AssumeCrossAccountReadOnlyRole",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::*:role/AWSopsReadOnlyRole"
+    }
+  ]
+}

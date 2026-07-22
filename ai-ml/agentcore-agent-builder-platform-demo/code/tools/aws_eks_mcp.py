@@ -6,7 +6,6 @@ AWS EKS MCP Lambda - EKS 클러스터 관리, K8s 리소스, CloudWatch, IAM
 # AgentCore Gateway MCP를 통해 9개 이상의 EKS 운영 도구를 제공합니다.
 """
 import json
-import os
 from cross_account import get_client, get_role_arn
 
 
@@ -93,11 +92,10 @@ def lambda_handler(event, context):
 
         # List K8s resources (requires kubectl on EC2) / K8s 리소스 목록 조회 (EC2에서 kubectl 필요)
         elif t == "list_k8s_resources":
-            cluster_name = args.get('cluster_name', '')
-            account_id = os.environ.get('ACCOUNT_ID', 'YOUR_ACCOUNT_ID')
             return {"statusCode": 200, "body": json.dumps({
                 "message": "K8s resource listing requires kubectl/API access on EC2.",
-                "suggestion": f"Use SSM: aws ssm send-command --parameters 'commands=[\"kubectl get {args.get('kind', 'pods')} -n {args.get('namespace', 'default')} --context arn:aws:eks:ap-northeast-2:{account_id}:cluster/{cluster_name}\"]'"})}
+                "suggestion": "Use SSM: aws ssm send-command --parameters 'commands=[\"kubectl get {} -n {} --context arn:aws:eks:ap-northeast-2:<ACCOUNT_ID>:cluster/{}\"]'".format(
+                    args.get('kind', 'pods'), args.get('namespace', 'default'), args.get('cluster_name', ''))})}
 
         # Get pod logs (requires kubectl on EC2) / 파드 로그 조회 (EC2에서 kubectl 필요)
         elif t == "get_pod_logs":
@@ -195,10 +193,7 @@ def lambda_handler(event, context):
                     "arguments": {"search_phrase": "EKS troubleshoot " + args.get("query", ""), "limit": 5}}}).encode()
             req = urllib.request.Request("https://knowledge-mcp.global.api.aws",
                 data=payload, headers={"Content-Type": "application/json", "Accept": "application/json"})
-            # Only allow HTTPS to prevent file:// or custom-scheme access (B310)
-            if req.type != "https":
-                return {"statusCode": 400, "body": json.dumps({"error": "Only https scheme is permitted"})}
-            with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 - scheme validated above
+            with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 - fixed https AWS Knowledge MCP endpoint literal, not user-controlled
                 data = json.loads(resp.read().decode())
             content = data.get("result", {}).get("content", [])
             return {"statusCode": 200, "body": "\n".join(c.get("text", "") for c in content if c.get("type") == "text")[:50000]}
