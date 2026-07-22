@@ -269,8 +269,11 @@ async def _stream_agent(body: dict):
                     )
                 yield f"event: done\ndata: {json.dumps({'content': result_text})}\n\n"
     except Exception as e:
+        # Log details server-side; return a generic message to the client
+        # so exception details are not exposed. / 예외 상세는 서버 로그에만 남기고
+        # 클라이언트에는 일반 메시지만 반환한다.
         logger.error("Stream agent error: %s", e)
-        yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+        yield f"event: error\ndata: {json.dumps({'error': 'Internal agent error'})}\n\n"
     finally:
         obs_hook.writer = None
 
@@ -379,8 +382,8 @@ async def invocations(request: Request):
         # 남기고 클라이언트에는 반환하지 않는다(내부 스택 노출 방지).
         logger.error("Agent execution error: %s\n%s", e, traceback.format_exc())
         if writer:
-            writer.write_event("error", {"message": str(e)})
-        return {"error": str(e)}
+            writer.write_event("error", {"message": "Internal agent error"})
+        return {"error": "Internal agent error"}
     finally:
         obs_hook.writer = None
 
