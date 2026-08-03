@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -90,10 +94,10 @@ module "auth" {
 }
 
 module "iam" {
-  source              = "../../modules/iam"
-  prefix              = local.prefix
-  aws_region          = var.aws_region
-  account_id          = data.aws_caller_identity.current.account_id
+  source               = "../../modules/iam"
+  prefix               = local.prefix
+  aws_region           = var.aws_region
+  account_id           = data.aws_caller_identity.current.account_id
   platform_table_arn   = module.data.platform_table_arn
   incidents_table_arn  = module.data.incidents_table_arn
   reports_bucket_arn   = module.data.reports_bucket_arn
@@ -149,4 +153,11 @@ module "build" {
   account_id    = data.aws_caller_identity.current.account_id
   ecr_repo_arns = module.registry.repo_arns
   tags          = local.common_tags
+}
+
+module "observability" {
+  source     = "../../modules/observability"
+  aws_region = var.aws_region
+  account_id = data.aws_caller_identity.current.account_id
+  tags       = local.common_tags
 }
