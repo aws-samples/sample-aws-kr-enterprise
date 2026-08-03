@@ -193,7 +193,11 @@ async def _iter_stream(agentcore_client, runtime_arn, prompt, context):
 
     while True:
         try:
-            item = await asyncio.wait_for(queue.get(), timeout=30)
+            # Keepalive interval must stay well BELOW CloudFront's VPC-origin
+            # OriginReadTimeout (30s) so the stream never goes byte-silent long
+            # enough to be severed — e.g. while the agent blocks on a slow
+            # synchronous A2A delegation (report generation). 10s leaves margin.
+            item = await asyncio.wait_for(queue.get(), timeout=10)
         except asyncio.TimeoutError:
             yield ": keepalive"
             continue

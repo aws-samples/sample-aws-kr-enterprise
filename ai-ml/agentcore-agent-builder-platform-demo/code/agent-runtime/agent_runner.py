@@ -144,12 +144,16 @@ def _initialize_agent():
         # Strands Agent with ObservabilityHook
         from strands import Agent
         from strands.models.bedrock import BedrockModel
+        from botocore.config import Config as BotoConfig
 
         model_id = config.get("model", "global.anthropic.claude-sonnet-4-6")
+        # Long report/RCA generations can exceed boto's default read timeout
+        # (~60s), causing ReadTimeoutError mid-stream. Extend it.
         model = BedrockModel(
             model_id=model_id,
             region_name=REGION,
             max_tokens=32768,
+            boto_client_config=BotoConfig(read_timeout=300, connect_timeout=10),
         )
 
         is_supervisor = "supervisor" in AGENT_ID.lower()

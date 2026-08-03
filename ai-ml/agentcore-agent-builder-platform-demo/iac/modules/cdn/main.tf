@@ -106,6 +106,11 @@ resource "aws_cloudfront_distribution" "main" {
 
     vpc_origin_config {
       vpc_origin_id = aws_cloudfront_vpc_origin.alb.id
+      # Extend the origin read timeout (default 30s, max 60s) so a long-lived
+      # SSE stream (e.g. an agent blocked on a synchronous A2A delegation) is
+      # not severed mid-response. Paired with a <10s SSE keepalive server-side.
+      origin_read_timeout      = 60
+      origin_keepalive_timeout = 60
     }
   }
 
