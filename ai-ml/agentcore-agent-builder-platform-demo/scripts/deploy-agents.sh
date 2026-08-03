@@ -14,6 +14,14 @@ ACCOUNT_ID="${ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output
 BASE_IMAGE="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT_PREFIX}/base-image:latest"
 REPORT_IMAGE="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT_PREFIX}/report-image:latest"
 ROLE_ARN="${AGENTCORE_ROLE_ARN:-arn:aws:iam::${ACCOUNT_ID}:role/${PROJECT_PREFIX}-agentcore-runtime}"
+INCIDENTS_TABLE="${INCIDENTS_TABLE:-${PROJECT_PREFIX}-incidents}"
+
+# Report agent runtime needs S3/CloudFront targets to write reports. Prefer
+# values already exported (by deploy-all.sh Phase 1); otherwise pull from
+# terraform outputs. Without these, report generation raises a clear runtime error.
+TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../iac/envs/dev" && pwd)"
+REPORT_BUCKET="${S3_BUCKET:-${REPORT_BUCKET:-$(cd "$TF_DIR" && terraform output -raw s3_reports_bucket 2>/dev/null || echo "")}}"
+REPORT_CF_DOMAIN="${REPORT_CF_DOMAIN:-$(cd "$TF_DIR" && terraform output -raw reports_distribution_domain 2>/dev/null || echo "")}"
 
 # agent-id:runtime-name pairs
 AGENTS=(
@@ -26,8 +34,19 @@ AGENTS=(
 )
 REPORT_AGENTS=("report-agent-001:reportagent001")
 
+# Build the environment-variables JSON for a given agent id. Includes the
+# report S3/CloudFront targets (empty string if unresolved — the runtime then
+# surfaces a clear error instead of crashing on import).
+build_env() {
+  local aid="$1"
+  cat <<ENVJSON
+{"AGENT_ID":"${aid}","DYNAMODB_TABLE":"${TABLE}","INCIDENTS_TABLE":"${INCIDENTS_TABLE}","AWS_REGION":"${REGION}","AGENT_OBSERVABILITY_ENABLED":"true","REPORT_BUCKET":"${REPORT_BUCKET}","REPORT_CF_DOMAIN":"${REPORT_CF_DOMAIN}"}
+ENVJSON
+}
+
 echo "=== Deploying Agent Runtimes ==="
 echo "  Region: $REGION | Image: $BASE_IMAGE"
+echo "  Report target: bucket=${REPORT_BUCKET:-<unset>} cf=${REPORT_CF_DOMAIN:-<unset>}"
 
 for entry in "${AGENTS[@]}"; do
   AGENT_ID="${entry%%:*}"
@@ -39,7 +58,7 @@ for entry in "${AGENTS[@]}"; do
     --role-arn "$ROLE_ARN" \
     --network-configuration '{"networkMode":"PUBLIC"}' \
     --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"${BASE_IMAGE}\"}}" \
-    --environment-variables "{\"AGENT_ID\":\"${AGENT_ID}\",\"DYNAMODB_TABLE\":\"${TABLE}\",\"AWS_REGION\":\"${REGION}\"}" \
+    --environment-variables "$(build_env "$AGENT_ID")" \
     --region "$REGION" \
     --query 'agentRuntimeArn' --output text 2>/dev/null || echo "ALREADY_EXISTS")
 
@@ -72,7 +91,7 @@ for entry in "${REPORT_AGENTS[@]}"; do
     --role-arn "$ROLE_ARN" \
     --network-configuration '{"networkMode":"PUBLIC"}' \
     --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"${REPORT_IMAGE}\"}}" \
-    --environment-variables "{\"AGENT_ID\":\"${AGENT_ID}\",\"DYNAMODB_TABLE\":\"${TABLE}\",\"AWS_REGION\":\"${REGION}\"}" \
+    --environment-variables "$(build_env "$AGENT_ID")" \
     --region "$REGION" \
     --query 'agentRuntimeArn' --output text 2>/dev/null || echo "ALREADY_EXISTS")
 
