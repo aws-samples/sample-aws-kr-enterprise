@@ -50,6 +50,8 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ```
 
 > `deploy-all.sh`가 완료되면 웹 UI에서 Agent 정의 → Deploy → Playground 테스트까지 가능합니다.
+>
+> 📘 **Agent 생성·배포 가이드**: 웹 UI에서 Agent를 만들고 배포·테스트하는 단계별 절차는 [`docs/agent-builder-guide.md`](docs/agent-builder-guide.md)를 참고하세요.
 
 ## 배포 단계 (deploy-all.sh)
 
@@ -352,6 +354,8 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ```
 
 > Once `deploy-all.sh` completes, you can define agents, deploy them, and test via the Playground — all from the web UI.
+>
+> 📘 **Agent Build & Deploy Guide**: for a step-by-step walkthrough of creating, deploying, and testing an agent in the web UI, see [`docs/agent-builder-guide.md`](docs/agent-builder-guide.md).
 
 ## Deployment Phases (deploy-all.sh)
 
