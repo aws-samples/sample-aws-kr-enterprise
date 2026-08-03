@@ -22,9 +22,16 @@ REGION = os.environ.get("AWS_REGION", "us-west-2")
 USER_POOL_ID = os.environ.get("COGNITO_USER_POOL_ID", "")
 CLIENT_ID = os.environ.get("COGNITO_CLIENT_ID", "")
 
+# Public auth endpoints (pre-login) are excluded; authenticated ones like
+# /api/auth/me must go through verification so request.state.user is populated.
 EXCLUDED_PATHS = [
     "/health",
-    "/api/auth/",
+    "/api/auth/login",
+    "/api/auth/signup",
+    "/api/auth/verify",
+    "/api/auth/resend-code",
+    "/api/auth/refresh",
+    "/api/events/",  # EventBridge API destination — gated by x-api-source, not JWT
     "/docs",
     "/openapi.json",
     "/redoc",
@@ -102,8 +109,12 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
         token = auth_header[7:]
 
         if not USER_POOL_ID:
-            logger.warning("COGNITO_USER_POOL_ID not set, skipping auth")
-            return await call_next(request)
+            # Fail CLOSED: a missing pool id must never disable authentication.
+            logger.error("COGNITO_USER_POOL_ID not set — refusing requests")
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "Authentication is not configured"},
+            )
 
         try:
             jwks = await _get_jwks()

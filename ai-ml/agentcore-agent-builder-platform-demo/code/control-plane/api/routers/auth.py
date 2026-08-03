@@ -4,7 +4,7 @@ import os
 import logging
 
 import boto3
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, EmailStr, field_validator
 
 logger = logging.getLogger(__name__)
@@ -91,11 +91,15 @@ async def verify_email(req: VerifyRequest):
         raise HTTPException(status_code=500, detail="Verification failed")
 
 
+class ResendRequest(BaseModel):
+    email: EmailStr
+
+
 @router.post("/resend-code")
-async def resend_code(email: EmailStr):
+async def resend_code(req: ResendRequest):
     """Resend email verification code."""
     try:
-        cognito.resend_confirmation_code(ClientId=CLIENT_ID, Username=email)
+        cognito.resend_confirmation_code(ClientId=CLIENT_ID, Username=req.email)
         return {"message": "Verification code resent"}
     except Exception as e:
         logger.error(f"Resend error: {e}")
@@ -160,13 +164,16 @@ async def refresh_token(req: RefreshRequest):
 
 
 @router.get("/me")
-async def get_current_user(request):
-    """Get current authenticated user info."""
-    from starlette.requests import Request
-    req: Request = request
-    if hasattr(req.state, "user"):
+async def get_current_user(request: Request):
+    """Get current authenticated user info.
+
+    Authenticated route: the Cognito middleware verifies the Bearer token and
+    populates request.state.user before this handler runs.
+    """
+    user = getattr(request.state, "user", None)
+    if user:
         return {
-            "email": req.state.user.get("email", ""),
-            "sub": req.state.user.get("sub", ""),
+            "email": user.get("email", ""),
+            "sub": user.get("sub", ""),
         }
     raise HTTPException(status_code=401, detail="Not authenticated")
