@@ -116,12 +116,27 @@ async def deploy_agent(
     runtime = db.get_runtime_status(agent_id)
     if (
         runtime
-        and runtime.get("status") in ("READY", "CREATING")
+        and runtime.get("status") in ("READY", "CREATING", "active")
         and runtime.get("runtimeArn")
     ):
         resolved_arn = runtime["runtimeArn"]
     else:
-        if not db.claim_runtime_creating(agent_id):
+        # Before creating, adopt an already-existing runtime of the same name.
+        # This prevents ConflictException on a retry (e.g. the first deploy
+        # created the runtime but the DDB record was lost / left CREATE_FAILED)
+        # and heals the RUNTIME record to point at the real, live runtime.
+        existing = ac.find_runtime_by_name(agent_id)
+        if existing and existing.get("runtimeArn") and existing.get("status") in (
+            "READY",
+            "CREATING",
+            "active",
+        ):
+            resolved_arn = existing["runtimeArn"]
+            db.update_runtime_status(agent_id, "READY", resolved_arn)
+            db.update_healthiness(
+                agent_id, "READY", datetime.now(timezone.utc).isoformat()
+            )
+        elif not db.claim_runtime_creating(agent_id):
             runtime = db.get_runtime_status(agent_id)
             if runtime and runtime.get("runtimeArn"):
                 resolved_arn = runtime["runtimeArn"]
@@ -174,18 +189,30 @@ async def deploy_agent(
             except HTTPException:
                 raise
             except Exception as e:
-                db.update_runtime_status(
-                    agent_id,
-                    "CREATE_FAILED",
-                    resolved_arn,
-                    failure_reason=str(e),
-                )
-                db.update_healthiness(
-                    agent_id,
-                    "CREATE_FAILED",
-                    datetime.now(timezone.utc).isoformat(),
-                )
-                raise HTTPException(status_code=500, detail=str(e))
+                # Reconcile against AgentCore before recording failure: the
+                # runtime may actually exist/READY (e.g. wait timed out but
+                # provisioning finished). Never persist an empty runtimeArn —
+                # that is what caused the CREATE_FAILED-with-no-arn state that
+                # made retries re-create and hit ConflictException.
+                recovered = ac.find_runtime_by_name(agent_id) or {}
+                real_arn = resolved_arn or recovered.get("runtimeArn", "")
+                if recovered.get("status") in ("READY", "CREATING", "active") and real_arn:
+                    db.update_runtime_status(agent_id, "READY", real_arn)
+                    db.update_healthiness(
+                        agent_id, "READY", datetime.now(timezone.utc).isoformat()
+                    )
+                    resolved_arn = real_arn
+                else:
+                    if real_arn:
+                        db.update_runtime_status(
+                            agent_id, "CREATE_FAILED", real_arn, failure_reason=str(e)
+                        )
+                        db.update_healthiness(
+                            agent_id,
+                            "CREATE_FAILED",
+                            datetime.now(timezone.utc).isoformat(),
+                        )
+                    raise HTTPException(status_code=500, detail=str(e))
 
     card = {
         "name": config.get("name", ""),
