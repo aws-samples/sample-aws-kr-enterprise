@@ -145,7 +145,7 @@ def _initialize_agent():
         from strands import Agent
         from strands.models.bedrock import BedrockModel
 
-        model_id = config.get("model", "apac.anthropic.claude-sonnet-4-20250514-v1:0")
+        model_id = config.get("model", "global.anthropic.claude-sonnet-4-6")
         model = BedrockModel(
             model_id=model_id,
             region_name=REGION,

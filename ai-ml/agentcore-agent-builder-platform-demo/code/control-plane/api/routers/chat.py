@@ -1,5 +1,7 @@
 """Chat SSE + Side-Channel. Spec Section 3.2, 3.3."""
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from ulid import ULID
@@ -8,6 +10,30 @@ from models.session import ChatRequest, HITLRequest
 from services.side_channel import stream_relay
 
 router = APIRouter(prefix="/api/agents", tags=["chat"])
+
+SUPERVISOR_AGENT_ID = "supervisor-001"
+
+
+def _sse_error(code: str, message: str, hint: str = "") -> StreamingResponse:
+    """Return a well-formed SSE stream carrying an explicit error event.
+
+    Used instead of a hard HTTP 503 so the Playground keeps its streaming
+    connection and can render a friendly, actionable message to the user
+    (the frontend listens for `event: error`).
+    """
+
+    def _gen():
+        payload = {"error": message, "code": code}
+        if hint:
+            payload["hint"] = hint
+        yield f"event: error\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        yield "event: done\ndata: {}\n\n"
+
+    return StreamingResponse(
+        _gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 def get_db(request: Request):
@@ -28,14 +54,27 @@ async def start_chat(
     session_id = req.sessionId or str(ULID())
 
     runtime = db.get_runtime_status(agent_id)
-    actual_agent_id = agent_id
+    is_ready = bool(runtime) and runtime.get("status") in ("active", "READY")
 
-    if not runtime or runtime.get("status") not in ("active", "READY"):
-        supervisor_runtime = db.get_runtime_status("supervisor-001")
-        if not supervisor_runtime:
-            raise HTTPException(status_code=503, detail="No active runtime")
-        runtime = supervisor_runtime
-        actual_agent_id = "supervisor-001"
+    # Route to the requested agent's own runtime when it is ready. Do NOT
+    # silently substitute the supervisor for a domain agent — that would make
+    # the Cost/Incident/etc. playground answer with the supervisor's identity
+    # and tools. Instead surface an explicit, actionable error to the client
+    # (over SSE, so the Playground stream stays intact) unless the supervisor
+    # itself was the requested target.
+    if not is_ready:
+        if agent_id == SUPERVISOR_AGENT_ID:
+            return _sse_error(
+                "supervisor_unavailable",
+                "The supervisor runtime is not ready yet.",
+                "Wait for deployment to finish (status READY), then retry.",
+            )
+        return _sse_error(
+            "agent_not_ready",
+            f"Agent '{agent_id}' is not deployed or its runtime is not ready.",
+            "Open the agent's Design page and Deploy it, then wait until its "
+            "runtime status is READY before using the Playground.",
+        )
 
     runtime_arn = runtime.get("runtimeArn", "")
 
