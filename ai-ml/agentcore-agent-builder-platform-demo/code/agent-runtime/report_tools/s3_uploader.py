@@ -5,11 +5,27 @@ from datetime import datetime, timezone
 
 import boto3
 
-REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
-REPORT_BUCKET = os.environ["REPORT_BUCKET"]
-REPORT_CF_DOMAIN = os.environ["REPORT_CF_DOMAIN"]
+REGION = os.environ.get("AWS_REGION", "us-east-1")
+# Read lazily via .get() so importing this module never crashes when the env
+# is not yet populated; validate at call time with a clear error instead.
+REPORT_BUCKET = os.environ.get("REPORT_BUCKET", "")
+REPORT_CF_DOMAIN = os.environ.get("REPORT_CF_DOMAIN", "")
 
 _s3_cache: dict = {}
+
+
+def _require_report_env():
+    missing = [
+        n
+        for n, v in (("REPORT_BUCKET", REPORT_BUCKET), ("REPORT_CF_DOMAIN", REPORT_CF_DOMAIN))
+        if not v
+    ]
+    if missing:
+        raise RuntimeError(
+            f"Report generation requires env vars: {', '.join(missing)}. "
+            "Set them on the report agent runtime (from the S3 reports bucket "
+            "and CloudFront domain terraform outputs)."
+        )
 
 
 def _get_s3_client():
@@ -24,6 +40,7 @@ def upload_to_s3(
     html_content: str,
 ) -> str:
     """HTML 보고서를 S3에 업로드하고 presigned URL을 반환."""
+    _require_report_env()
     s3 = _get_s3_client()
     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     key = f"{date_str}/{session_id}/{report_type}-report.html"

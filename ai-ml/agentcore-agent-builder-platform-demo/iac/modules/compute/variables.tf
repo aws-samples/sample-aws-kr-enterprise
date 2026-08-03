@@ -48,6 +48,21 @@ variable "platform_table_name" {
   description = "DynamoDB platform table name"
 }
 
+variable "incidents_table_name" {
+  type        = string
+  description = "DynamoDB incidents table name"
+}
+
+variable "reports_bucket_name" {
+  type        = string
+  description = "S3 bucket for generated reports (injected into report agent runtime)"
+}
+
+variable "reports_cf_domain" {
+  type        = string
+  description = "CloudFront domain serving the reports bucket"
+}
+
 variable "cognito_user_pool_id" {
   type        = string
   description = "Cognito User Pool ID for JWT verification"

@@ -113,6 +113,9 @@ module "compute" {
   platform_api_task_role_arn = module.iam.platform_api_task_role_arn
   agentcore_runtime_role_arn = module.iam.agentcore_runtime_role_arn
   platform_table_name        = module.data.platform_table_name
+  incidents_table_name       = module.data.incidents_table_name
+  reports_bucket_name        = module.data.reports_bucket_name
+  reports_cf_domain          = module.cdn.reports_distribution_domain
   cognito_user_pool_id       = module.auth.user_pool_id
   cognito_client_id          = module.auth.client_id
   domain_name                = var.domain_name

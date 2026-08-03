@@ -36,6 +36,13 @@ class AgentCoreClient:
             "AWS_REGION": REGION,
             "AGENT_OBSERVABILITY_ENABLED": "true",
         }
+        # Propagate report-generation config so the Report agent's runtime can
+        # write HTML reports to S3/CloudFront. Without these the report_tools
+        # import/use fails and reports are never produced.
+        for var in ("REPORT_BUCKET", "REPORT_CF_DOMAIN", "INCIDENTS_TABLE"):
+            val = os.environ.get(var)
+            if val:
+                environment[var] = val
         if env_vars:
             environment.update(env_vars)
 
