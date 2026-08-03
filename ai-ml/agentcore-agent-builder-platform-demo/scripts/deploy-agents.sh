@@ -8,6 +8,7 @@ if [ -z "${AWS_REGION:-}" ]; then
     exit 1
 fi
 REGION="$AWS_REGION"
+: "${PROJECT_PREFIX:=aiops-v2-dev}"
 TABLE="${DYNAMODB_TABLE:-${PROJECT_PREFIX}-platform}"
 ACCOUNT_ID="${ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
 BASE_IMAGE="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${PROJECT_PREFIX}/base-image:latest"

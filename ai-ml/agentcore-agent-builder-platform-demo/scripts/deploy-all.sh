@@ -7,10 +7,15 @@ set -euo pipefail
 # Environment Variables (Required)
 ################################################################################
 
+# Exported so child scripts launched via `bash <script>` (new processes) inherit
+# them. seed-dynamodb.sh / deploy-agents.sh run under `set -u` and reference
+# PROJECT_PREFIX/DOMAIN_NAME directly, so a non-exported value would abort them.
+export AWS_REGION
+export ACCOUNT_ID
 : "${AWS_REGION:?Set AWS_REGION (e.g. us-west-2)}"
 : "${ACCOUNT_ID:?Set ACCOUNT_ID (12-digit AWS account ID)}"
-: "${DOMAIN_NAME:=}"
-: "${PROJECT_PREFIX:=aiops-v2-dev}"
+export DOMAIN_NAME="${DOMAIN_NAME:-}"
+export PROJECT_PREFIX="${PROJECT_PREFIX:-aiops-v2-dev}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"

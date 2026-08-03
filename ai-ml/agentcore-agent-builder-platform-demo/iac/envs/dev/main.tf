@@ -117,6 +117,7 @@ module "compute" {
   cognito_client_id          = module.auth.client_id
   domain_name                = var.domain_name
   platform_domain            = module.cdn.platform_distribution_domain
+  alb_deletion_protection    = var.alb_deletion_protection
   tags                       = local.common_tags
 }
 
