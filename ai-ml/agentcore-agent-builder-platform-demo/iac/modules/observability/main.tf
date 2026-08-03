@@ -80,14 +80,22 @@ resource "null_resource" "enable_transaction_search" {
 
   provisioner "local-exec" {
     command = <<-EOT
-      set -euo pipefail
-      aws xray update-trace-segment-destination \
-        --destination CloudWatchLogs \
-        --region ${var.aws_region}
+      set -eu
+      REGION="${var.aws_region}"
+      # Idempotent: only switch the destination if it isn't already CloudWatchLogs
+      # (a re-run otherwise raises InvalidRequestException "already set").
+      CURRENT=$(aws xray get-trace-segment-destination --region "$REGION" \
+        --query 'Destination' --output text 2>/dev/null || echo "")
+      if [ "$CURRENT" != "CloudWatchLogs" ]; then
+        aws xray update-trace-segment-destination \
+          --destination CloudWatchLogs --region "$REGION"
+      else
+        echo "Transaction Search already enabled (destination=CloudWatchLogs)"
+      fi
       aws xray update-indexing-rule \
         --name Default \
         --rule '{"Probabilistic":{"DesiredSamplingPercentage":100}}' \
-        --region ${var.aws_region}
+        --region "$REGION"
     EOT
   }
 }
