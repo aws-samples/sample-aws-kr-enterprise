@@ -31,7 +31,7 @@ def create_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Callable:
             _client_cache["client"] = boto3.client(
                 "bedrock-agentcore",
                 region_name=region,
-                config=BotoConfig(read_timeout=300),
+                config=BotoConfig(read_timeout=900),
             )
         return _client_cache["client"]
 
@@ -149,7 +149,7 @@ def create_scoped_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Cal
             _client_cache["client"] = boto3.client(
                 "bedrock-agentcore",
                 region_name=region,
-                config=BotoConfig(read_timeout=300),
+                config=BotoConfig(read_timeout=900),
             )
         return _client_cache["client"]
 

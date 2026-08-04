@@ -23,7 +23,7 @@ class AgentCoreClient:
         self.runtime_client = boto3.client(
             "bedrock-agentcore",
             region_name=REGION,
-            config=BotoConfig(connect_timeout=10, read_timeout=300),
+            config=BotoConfig(connect_timeout=10, read_timeout=900),
         )
 
     def create_runtime(
