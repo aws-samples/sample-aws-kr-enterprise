@@ -56,12 +56,17 @@ def upload_to_s3(
     return f"https://{REPORT_CF_DOMAIN}/{key}"
 
 
-def generate_signed_url(key: str, expires_in: int = 3600) -> str:
-    """S3 Presigned URL 생성."""
-    s3 = _get_s3_client()
-    url = s3.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": REPORT_BUCKET, "Key": key},
-        ExpiresIn=expires_in,
-    )
-    return url
+def publish_report(report_type: str, data: dict, template_str: str = None) -> str:
+    """리포트를 렌더링→S3 업로드하고 CloudFront URL을 반환하는 단일 도구.
+
+    render_report → upload_to_s3를 내부에서 순차 실행하여 LLM 왕복을 1회로 줄인다.
+    session_id는 런타임 request context에서 읽는다(LLM 인자가 아님).
+    template_str가 주어지면 파일 템플릿이 없는 novel report_type에 대해 인라인
+    템플릿을 렌더링한다.
+    """
+    from report_tools.renderer import render_report
+    from internal_tools import _request_context
+
+    session_id = _request_context.get("session_id", "") or "no-session"
+    html = render_report(report_type, data, template_str=template_str)
+    return upload_to_s3(session_id, report_type, html)
