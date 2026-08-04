@@ -16,15 +16,14 @@
 ################################################################################
 
 # 1. Spans log group ----------------------------------------------------------
-
-resource "aws_cloudwatch_log_group" "spans" {
-  name              = "aws/spans"
-  retention_in_days = 30
-
-  tags = merge(var.tags, {
-    Name = "aws-spans"
-  })
-}
+#
+# NOTE: The `aws/spans` log group is NOT created here. Log group names starting
+# with `aws/` are reserved by AWS (CreateLogGroup returns InvalidParameterException),
+# so Terraform cannot create it. Per the AgentCore Observability docs, the group
+# is created automatically by the service when X-Ray's trace segment destination
+# is switched to CloudWatchLogs (the null_resource below). We only need the
+# resource policy that lets X-Ray write into it.
+# Ref: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability-get-started.html
 
 # 2. Transaction Search resource policy ---------------------------------------
 
@@ -69,7 +68,6 @@ resource "aws_cloudwatch_log_resource_policy" "transaction_search" {
 resource "null_resource" "enable_transaction_search" {
   depends_on = [
     aws_cloudwatch_log_resource_policy.transaction_search,
-    aws_cloudwatch_log_group.spans,
   ]
 
   # Re-run if the region changes; the CLI calls are idempotent so re-applies are safe.
