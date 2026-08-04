@@ -179,13 +179,12 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<I
   "name": {"S": "Report Generator Agent"},
   "contextBoundary": {"S": "Generate HTML/CSS reports from structured analysis data"},
   "model": {"S": "global.anthropic.claude-sonnet-4-6"},
+  "maxTokens": {"N": "8192"},
   "systemPrompt": {"S": "${REPORT_PROMPT}"},
   "gateways": {"L": []},
   "delegations": {"L": []},
   "internalTools": {"L": [
-    {"M": {"name": {"S": "render_report"}, "description": {"S": "Render HTML with Jinja2 template"}, "type": {"S": "python_function"}, "module": {"S": "report_tools.renderer"}}},
-    {"M": {"name": {"S": "upload_to_s3"}, "description": {"S": "Upload report to S3"}, "type": {"S": "python_function"}, "module": {"S": "report_tools.s3_uploader"}}},
-    {"M": {"name": {"S": "generate_signed_url"}, "description": {"S": "Generate signed URL"}, "type": {"S": "python_function"}, "module": {"S": "report_tools.s3_uploader"}}}
+    {"M": {"name": {"S": "publish_report"}, "description": {"S": "Render structured report data to HTML and publish to S3; returns the shareable CloudFront URL"}, "type": {"S": "python_function"}, "module": {"S": "report_tools.s3_uploader"}}}
   ]},
   "harness": {"M": {
     "preHooks": {"L": [{"S": "scope-validation"}]},
@@ -196,7 +195,7 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<I
   "triggers": {"L": []},
   "createdBy": {"S": "platform"},
   "version": {"N": "1"},
-  "metadata": {"M": {"supportedReportTypes": {"L": [{"S": "rca"}, {"S": "incident"}, {"S": "health-check"}, {"S": "daily-summary"}]}}}
+  "metadata": {"M": {"supportedReportTypes": {"L": [{"S": "rca"}, {"S": "incident"}, {"S": "health-check"}, {"S": "daily-summary"}, {"S": "security-audit"}]}}}
 }
 ITEM
 )"
