@@ -149,11 +149,14 @@ def _initialize_agent():
         model_id = config.get("model", "global.anthropic.claude-sonnet-4-6")
         # Long report/RCA generations can exceed boto's default read timeout
         # (~60s), causing ReadTimeoutError mid-stream. Extend it.
+        max_tokens = int(config.get("maxTokens", 32768))
         model = BedrockModel(
             model_id=model_id,
             region_name=REGION,
-            max_tokens=32768,
-            boto_client_config=BotoConfig(read_timeout=300, connect_timeout=10),
+            max_tokens=max_tokens,
+            # Long generations can exceed boto's default (~60s). 900s stays within
+            # AgentCore's 15-min synchronous request ceiling.
+            boto_client_config=BotoConfig(read_timeout=900, connect_timeout=10),
         )
 
         is_supervisor = "supervisor" in AGENT_ID.lower()
