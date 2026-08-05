@@ -33,10 +33,13 @@ def create_dynamodb_query(tool_config: dict, dynamodb_resource: Any) -> Callable
             )
             return json.dumps(response.get("Items", []), default=str)
 
-        # Standard PK query
-        if not pk_value:
+        # Standard PK query. Honor fixedPK so config-pinned queries (e.g. the
+        # supervisor's load_agent_registry over PK=SUPERVISOR) work without the
+        # LLM having to supply pk_value.
+        query_pk = fixed_pk or pk_value
+        if not query_pk:
             return json.dumps({"error": "pk_value is required"})
-        key_condition = Key("PK").eq(pk_value)
+        key_condition = Key("PK").eq(query_pk)
         response = table.query(KeyConditionExpression=key_condition, Limit=limit)
         return json.dumps(response.get("Items", []), default=str)
 

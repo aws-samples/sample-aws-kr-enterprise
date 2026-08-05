@@ -52,7 +52,7 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<I
   "gateways": {"L": []},
   "delegations": {"L": []},
   "internalTools": {"L": [
-    {"M": {"name": {"S": "load_agent_registry"}, "description": {"S": "Load active Agent Card list from DynamoDB"}, "type": {"S": "dynamodb_query"}}},
+    {"M": {"name": {"S": "load_agent_registry"}, "description": {"S": "Load active Agent Card list from DynamoDB"}, "type": {"S": "dynamodb_query"}, "fixedPK": {"S": "SUPERVISOR"}}},
     {"M": {"name": {"S": "invoke_domain_agent"}, "description": {"S": "Invoke selected Domain Agent Runtime"}, "type": {"S": "agent_invoke"}}}
   ]},
   "harness": {"M": {
@@ -179,7 +179,7 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<I
   "name": {"S": "Report Generator Agent"},
   "contextBoundary": {"S": "Generate HTML/CSS reports from structured analysis data"},
   "model": {"S": "global.anthropic.claude-sonnet-4-6"},
-  "maxTokens": {"N": "8192"},
+  "maxTokens": {"N": "32768"},
   "systemPrompt": {"S": "${REPORT_PROMPT}"},
   "gateways": {"L": []},
   "delegations": {"L": []},
