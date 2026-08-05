@@ -175,6 +175,44 @@ def _initialize_agent():
             config.get("systemPrompt", "") or "You are a helpful AI assistant."
         )
 
+        # {AGENT_REGISTRY} 치환: supervisor 프롬프트에 라우팅 대상 agent 목록(정확한
+        # agentId + contextBoundary)을 주입한다. 미치환 시 모델이 유효 ID를 몰라
+        # 'cost-agent' 같은 잘못된 ID를 추측해 invoke_domain_agent가 실패한다.
+        if is_supervisor and "{AGENT_REGISTRY}" in system_prompt:
+            registry_lines = []
+            try:
+                from boto3.dynamodb.conditions import Key
+
+                resp = table.query(
+                    KeyConditionExpression=Key("PK").eq("SUPERVISOR")
+                )
+                for entry in resp.get("Items", []):
+                    sk = entry.get("SK", "")
+                    if not sk.startswith("AGENT#"):
+                        continue
+                    aid = sk.split("#", 1)[1]
+                    if aid == AGENT_ID:  # supervisor 자신은 라우팅 대상에서 제외
+                        continue
+                    card = table.get_item(
+                        Key={"PK": f"AGENT#{aid}", "SK": "CARD"}
+                    ).get("Item", {})
+                    boundary = card.get("contextBoundary", "") or entry.get(
+                        "contextBoundary", ""
+                    )
+                    name = card.get("name", aid)
+                    registry_lines.append(f"- {aid}: {name} — {boundary}")
+            except Exception as e:
+                logger.warning("AGENT_REGISTRY injection query failed: %s", e)
+            registry_text = (
+                "\n".join(registry_lines)
+                if registry_lines
+                else "(no domain agents registered)"
+            )
+            system_prompt = system_prompt.replace("{AGENT_REGISTRY}", registry_text)
+            logger.info(
+                "AGENT_REGISTRY injected for %s: %d agents", AGENT_ID, len(registry_lines)
+            )
+
         # persona-injection pre-hook: contextBoundary 기반 scope 거부 규칙 자동 주입
         if "persona-injection" in harness.pre_hooks:
             boundary = config.get("contextBoundary", "")
