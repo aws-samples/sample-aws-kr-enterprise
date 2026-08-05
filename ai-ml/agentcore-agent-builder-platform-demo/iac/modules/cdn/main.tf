@@ -1,3 +1,14 @@
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+    }
+    tls = {
+      source = "hashicorp/tls"
+    }
+  }
+}
+
 ################################################################################
 # Cache Policies
 ################################################################################
@@ -181,6 +192,47 @@ resource "aws_cloudfront_origin_access_control" "reports" {
   signing_protocol                  = "sigv4"
 }
 
+################################################################################
+# Reports — CloudFront Signed URL provisioning (REPORT_URL contract)
+#
+# The reports distribution is NOT public: its default cache behavior is gated by
+# a trusted key group, so CloudFront only serves requests carrying a valid
+# signature. A key pair is generated at deploy time — the public key is uploaded
+# to CloudFront (below) and the private key PEM is stored in Secrets Manager.
+# The report agent runtime loads the private key from Secrets Manager and signs
+# every returned report URL with a short expiry (see report_tools/s3_uploader.py,
+# env REPORT_CF_KEY_PAIR_ID / REPORT_CF_PRIVATE_KEY_SECRET wired from the outputs
+# of this module).
+################################################################################
+
+resource "tls_private_key" "reports_signing" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "aws_cloudfront_public_key" "reports" {
+  name        = "${var.prefix}-reports-pubkey"
+  comment     = "Public key for reports signed URLs"
+  encoded_key = tls_private_key.reports_signing.public_key_pem
+}
+
+resource "aws_cloudfront_key_group" "reports" {
+  name    = "${var.prefix}-reports-key-group"
+  comment = "Trusted key group gating the reports distribution"
+  items   = [aws_cloudfront_public_key.reports.id]
+}
+
+resource "aws_secretsmanager_secret" "reports_signing_key" {
+  name        = "${var.prefix}-reports-cf-signing-key"
+  description = "CloudFront private key (PEM) for signing reports URLs"
+  tags        = var.tags
+}
+
+resource "aws_secretsmanager_secret_version" "reports_signing_key" {
+  secret_id     = aws_secretsmanager_secret.reports_signing_key.id
+  secret_string = tls_private_key.reports_signing.private_key_pem
+}
+
 resource "aws_cloudfront_distribution" "reports" {
   #checkov:skip=CKV_AWS_174:Uses cloudfront_default_certificate; minimum TLS version is fixed by CloudFront and cannot be set. Custom-domain path (main dist) enforces TLSv1.2_2021.
   enabled             = true
@@ -202,6 +254,11 @@ resource "aws_cloudfront_distribution" "reports" {
     compress               = true
 
     cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+
+    # Gate every report behind a CloudFront signed URL. CloudFront rejects any
+    # request to this behavior that lacks a valid signature from the trusted
+    # key group, removing the unauthenticated public read path (H9 / REPORT_URL).
+    trusted_key_groups = [aws_cloudfront_key_group.reports.id]
   }
 
   viewer_certificate {
@@ -223,6 +280,29 @@ resource "aws_cloudfront_distribution" "reports" {
   tags = merge(var.tags, {
     Name = "${var.prefix}-cf-reports"
   })
+}
+
+################################################################################
+# Reports signing-key outputs (REPORT_URL contract)
+#
+# Consumed by the report agent runtime env (deploy-agents.sh -> the runtime's
+# REPORT_CF_KEY_PAIR_ID / REPORT_CF_PRIVATE_KEY_SECRET). Declared here (rather
+# than outputs.tf) so the signed-URL contract stays self-contained.
+################################################################################
+
+output "reports_cf_key_pair_id" {
+  description = "CloudFront public key (key pair) id used to sign reports URLs"
+  value       = aws_cloudfront_public_key.reports.id
+}
+
+output "reports_cf_private_key_secret_name" {
+  description = "Secrets Manager secret name holding the CloudFront signing private key PEM"
+  value       = aws_secretsmanager_secret.reports_signing_key.name
+}
+
+output "reports_cf_private_key_secret_arn" {
+  description = "Secrets Manager secret ARN holding the CloudFront signing private key PEM"
+  value       = aws_secretsmanager_secret.reports_signing_key.arn
 }
 
 ################################################################################

@@ -17,13 +17,19 @@
 
 # 1. Spans log group ----------------------------------------------------------
 #
-# NOTE: The `aws/spans` log group is NOT created here. Log group names starting
-# with `aws/` are reserved by AWS (CreateLogGroup returns InvalidParameterException),
-# so Terraform cannot create it. Per the AgentCore Observability docs, the group
-# is created automatically by the service when X-Ray's trace segment destination
-# is switched to CloudWatchLogs (the null_resource below). We only need the
-# resource policy that lets X-Ray write into it.
-# Ref: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability-get-started.html
+# NOTE: The `aws/spans` log group is NOT created via aws_cloudwatch_log_group.
+# The Terraform provider rejects the reserved `aws/` prefix with
+# InvalidParameterException. Per the Transaction Search docs the group is created
+# by the service when X-Ray's trace segment destination is switched to
+# CloudWatchLogs, and the enabling principal must hold logs:CreateLogGroup on
+# `aws/spans`. Because the destination-switch provisioner below is a no-op once
+# the destination is already CloudWatchLogs, a group that was deleted
+# out-of-band (the K2 symptom: empty Trace Viewer while Transaction Search is
+# ACTIVE) would never be recreated. The provisioner below therefore explicitly
+# ensures the group exists on every apply, independent of the destination state.
+# Refs:
+#   https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Enable-TransactionSearch.html
+#   https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability-get-started.html
 
 # 2. Transaction Search resource policy ---------------------------------------
 
@@ -70,16 +76,28 @@ resource "null_resource" "enable_transaction_search" {
     aws_cloudwatch_log_resource_policy.transaction_search,
   ]
 
-  # Re-run if the region changes; the CLI calls are idempotent so re-applies are safe.
+  # Re-run on every apply so an out-of-band deletion of the aws/spans group is
+  # healed (the K2 root cause). All CLI calls here are idempotent, so re-runs
+  # are safe.
   triggers = {
     aws_region = var.aws_region
     account_id = var.account_id
+    always_run = timestamp()
   }
 
   provisioner "local-exec" {
     command = <<-EOT
       set -eu
       REGION="${var.aws_region}"
+      # Ensure the aws/spans span-storage log group exists. Transaction Search
+      # normally auto-creates it on the destination switch, but if it was
+      # deleted out-of-band the switch is a no-op and the Trace Viewer stays
+      # empty (K2). CreateLogGroup is idempotent-safe here: swallow the
+      # ResourceAlreadyExistsException so re-applies don't fail.
+      aws logs create-log-group --log-group-name "aws/spans" --region "$REGION" 2>/dev/null || true
+      aws logs put-retention-policy --log-group-name "aws/spans" \
+        --retention-in-days 30 --region "$REGION" 2>/dev/null || true
+
       # Idempotent: only switch the destination if it isn't already CloudWatchLogs
       # (a re-run otherwise raises InvalidRequestException "already set").
       CURRENT=$(aws xray get-trace-segment-destination --region "$REGION" \
