@@ -3,8 +3,13 @@
 # For byte-for-byte reproducibility, generate a lockfile from this set:
 #   pip install -r requirements.txt && pip freeze > requirements.lock.txt
 # and build from the lockfile in CI.
-strands-agents>=0.1.0,<0.2.0
-strands-agents-tools>=0.1.0,<0.2.0
+# The code uses the stable 1.x API (strands.hooks.registry/events,
+# strands.tools.mcp, strands.models.bedrock). The prior working images built
+# with an open lower bound resolved to strands 1.x; an earlier ceiling of
+# <0.2.0 wrongly pulled 0.1.9 (no strands.hooks) and crashed the runtime on
+# boot. Pin to the validated majors: strands-agents 1.x, tools 0.8.x.
+strands-agents>=1.0.0,<2.0.0
+strands-agents-tools>=0.8.0,<0.9.0
 boto3>=1.35.0,<2.0.0
 python-ulid>=2.0.0,<3.0.0
 fastapi>=0.110.0,<0.116.0
