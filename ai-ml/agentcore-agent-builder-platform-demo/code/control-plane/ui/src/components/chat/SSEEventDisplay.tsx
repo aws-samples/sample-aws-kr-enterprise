@@ -1,11 +1,17 @@
 import type { SSEEvent } from '@/lib/types';
 
 const STEP_MAP: Record<string, string> = {
+  // Supervisor side-channel event types.
   routing: 'Routing',
   status: 'Routing',
   action: 'Gathering',
   observation: 'Analyzing',
   message: 'Reporting',
+  // Event types the playground chat path actually emits
+  // (chat.py stream_relay -> invoke_runtime_stream -> _stream_agent).
+  tool_call: 'Gathering',
+  text: 'Analyzing',
+  done: 'Reporting',
 };
 
 function getActiveStep(events: SSEEvent[]): string {

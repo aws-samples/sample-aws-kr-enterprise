@@ -235,7 +235,7 @@ export default function SpanDetailPanel({ span, allSpans, onClose }: Props) {
                         {child.name}
                       </span>
                       {childDur != null && (
-                        <span className="font-mono text-[10px] ml-2 shrink-0" style={{ color: 'var(--accent-cyan)' }}>
+                        <span className="font-mono text-[10px] ml-2 shrink-0" style={{ color: 'var(--accent-cyan, #06b6d4)' }}>
                           {childDur.toFixed(1)}ms
                         </span>
                       )}
