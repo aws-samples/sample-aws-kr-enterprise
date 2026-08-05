@@ -20,6 +20,18 @@ _MAX_CACHE = 50
 _EXTERNAL_ID = os.environ.get('AWSOPS_EXTERNAL_ID', '')
 
 
+def default_region():
+    """Resolve the deployment region from the Lambda/boto3 environment.
+
+    Lambda always sets AWS_REGION; AWS_DEFAULT_REGION is honored for local/test
+    runs. Falls back to ap-northeast-2 only when nothing is set, so tools follow
+    the region they were deployed into instead of hardcoding Seoul.
+    배포 리전을 환경변수에서 결정 (하드코딩된 서울 대신)."""
+    return (os.environ.get('AWS_REGION')
+            or os.environ.get('AWS_DEFAULT_REGION')
+            or 'ap-northeast-2')
+
+
 def get_role_arn(account_id):
     """Build role ARN using configurable role name."""
     role_name = os.environ.get('AWSOPS_ROLE_NAME', 'AWSopsReadOnlyRole')
@@ -65,15 +77,16 @@ def _assume_role(role_arn, session_suffix=None):
     return creds
 
 
-def get_client(service, region='ap-northeast-2', role_arn=None, session_suffix=None):
+def get_client(service, region=None, role_arn=None, session_suffix=None):
     """Create boto3 client, optionally assuming a cross-account role.
 
     Args:
         service: AWS service name (e.g., 'ec2', 'iam')
-        region: AWS region
+        region: AWS region (defaults to the deployment region, not hardcoded Seoul)
         role_arn: Full IAM Role ARN (arn:aws:iam::XXXX:role/RoleName)
         session_suffix: Optional suffix for AssumeRole session name (defaults to service name)
     """
+    region = region or default_region()
     if not role_arn:
         return boto3.client(service, region_name=region)
 
@@ -81,8 +94,9 @@ def get_client(service, region='ap-northeast-2', role_arn=None, session_suffix=N
     return boto3.client(service, region_name=region, **creds)
 
 
-def get_resource(service, region='ap-northeast-2', role_arn=None):
+def get_resource(service, region=None, role_arn=None):
     """Create boto3 resource (for DynamoDB), optionally cross-account."""
+    region = region or default_region()
     if not role_arn:
         return boto3.resource(service, region_name=region)
 
