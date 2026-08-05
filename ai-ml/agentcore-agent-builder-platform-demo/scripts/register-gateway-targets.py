@@ -18,6 +18,10 @@ if not ACCOUNT_ID:
     ACCOUNT_ID = boto3.client('sts', region_name=REGION).get_caller_identity()['Account']
 client = boto3.client('bedrock-agentcore-control', region_name=REGION)
 
+# Counts target registrations that raised, so the script can exit nonzero
+# instead of masking a fully-failed Phase 8 as success.
+FAILED = 0
+
 
 def prop(t, d=''):
     r = {'type': t}
@@ -70,6 +74,8 @@ def create_target(gw_id, name, fn, desc, tools):
             credentialProviderConfigurations=[{'credentialProviderType': 'GATEWAY_IAM_ROLE'}])
         print('  CREATED: {} -> {}'.format(name, resp.get('targetId', '')))
     except Exception as e:
+        global FAILED
+        FAILED += 1
         print('  ERR: {} -> {}'.format(name, str(e)[:150]))
 
 
@@ -343,5 +349,9 @@ if gw:
             ('check_k8s_service_endpoints', 'Check K8s Service endpoints and Pod matching', {'type': 'object', 'properties': {'cluster_name': prop('string', 'EKS cluster'), 'namespace': prop('string', 'Namespace'), 'service_name': prop('string', 'Service name')}, 'required': ['cluster_name', 'service_name']}),
             ('run_full_diagnosis', 'Run full 6-step diagnostic workflow', {'type': 'object', 'properties': {'url': prop('string', 'Datasource URL'), 'datasource_type': prop('string', 'Type'), 'source_vpc_id': prop('string', 'Source VPC ID (for cross-VPC analysis)')}, 'required': ['url']}),
         ]])
+
+if FAILED:
+    print('\nFAILED: {} gateway target(s) could not be registered (see ERR lines above)'.format(FAILED), file=sys.stderr)
+    sys.exit(1)
 
 print('\nDONE')
