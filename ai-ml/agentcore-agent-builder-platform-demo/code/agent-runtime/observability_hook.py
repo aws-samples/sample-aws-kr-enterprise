@@ -89,10 +89,20 @@ class ObservabilityHook(HookProvider):
         )
 
     def _on_after_tool_call(self, event: AfterToolCallEvent) -> None:
-        if not self._writer:
-            return
         tool_name = event.tool_use.get("name", "unknown")
         has_error = event.exception is not None
+
+        # trace viewer(UI)의 tool-error 감지는 span의 gen_ai.tool.status에
+        # 의존한다. 여기서 성공/실패 상태를 명시적으로 기록하지 않으면 모든
+        # tool span이 상태 없이 렌더되어 error/success 표시가 죽는다(M6).
+        current_span = trace.get_current_span()
+        if current_span.is_recording():
+            current_span.set_attribute(
+                "gen_ai.tool.status", "error" if has_error else "success"
+            )
+
+        if not self._writer:
+            return
 
         data: dict[str, Any] = {
             "tool": tool_name,

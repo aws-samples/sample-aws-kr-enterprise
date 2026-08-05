@@ -37,6 +37,6 @@ Include: metrics summary, incident history, change events, root cause, recommend
 
 ## Rules
 1. Always follow the 5-step process in order.
-2. Write Side-Channel events at each step for real-time UI updates.
+2. The runtime automatically records progress/Side-Channel events for the real-time UI; you have no tool to write them and must not claim to have recorded any such event yourself.
 3. If a delegation times out, proceed with partial results and note the gap.
 4. Provide a clear, actionable recommendation.

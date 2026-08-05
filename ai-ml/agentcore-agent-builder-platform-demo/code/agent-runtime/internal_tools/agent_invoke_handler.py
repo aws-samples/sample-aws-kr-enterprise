@@ -16,8 +16,15 @@ from side_channel import SideChannelWriter
 
 logger = logging.getLogger(__name__)
 
-# 요청별 session context — agent_runner.py에서 매 invoke 시 갱신
-_request_context: dict = {"session_id": ""}
+# 요청별 session context — agent_runner.py에서 매 invoke 시 갱신.
+# delegation_depth는 이 런타임이 수신한 실제 depth이며, 하류로 보낼 depth 누적의
+# 기준이 된다(H3). LLM이 정하는 tool arg가 아니라 이 값을 사용해야 depth가
+# hop마다 누적되어 max_depth 가드가 실제로 동작한다.
+_request_context: dict = {"session_id": "", "delegation_depth": 0}
+
+# harness.Tier2Harness.max_depth와 동일. 수신 depth + 1 이 이 값을 넘으면
+# 비싼 invoke_agent_runtime 호출 전에 즉시 거부한다(delegation cycle 폭주 방지).
+MAX_DELEGATION_DEPTH = 2
 
 
 def create_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Callable:
@@ -45,6 +52,9 @@ def create_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Callable:
         """선택된 Domain Agent Runtime을 호출한다.
         내부적으로 boto3 bedrock-agentcore의 invoke_agent_runtime()을 래핑."""
         session_id = session_id or _request_context.get("session_id", "")
+        # 하류로 보낼 depth는 LLM이 정한 delegation_depth 인자가 아니라 이 런타임이
+        # 실제로 수신한 depth(_request_context) 기준으로 누적한다(H3).
+        outgoing_depth = _request_context.get("delegation_depth", 0) + 1
         table_name = os.environ.get("DYNAMODB_TABLE", "aiops-v2-dev-platform")
         table = dynamodb_resource.Table(table_name)
 
@@ -62,9 +72,28 @@ def create_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Callable:
                     "caller": caller_agent,
                     "target": agent_id,
                     "prompt_summary": prompt[:100],
-                    "depth": delegation_depth + 1,
+                    "depth": outgoing_depth,
                     "timestamp": time.time(),
                 },
+            )
+
+        # Depth 가드: 비싼 invoke_agent_runtime(read_timeout=900s) 호출 전에 즉시 거부.
+        if outgoing_depth > MAX_DELEGATION_DEPTH:
+            if writer:
+                writer.write_event(
+                    "a2a_delegation",
+                    {
+                        "phase": "error",
+                        "caller": caller_agent,
+                        "target": agent_id,
+                        "error": f"Delegation depth {outgoing_depth} exceeds maximum {MAX_DELEGATION_DEPTH}",
+                        "timestamp": time.time(),
+                    },
+                )
+            return json.dumps(
+                {
+                    "error": f"Delegation depth {outgoing_depth} exceeds maximum {MAX_DELEGATION_DEPTH}"
+                }
             )
 
         runtime_info = table.get_item(Key={"PK": f"AGENT#{agent_id}", "SK": "RUNTIME"})
@@ -91,7 +120,7 @@ def create_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Callable:
                 "context": {
                     "sessionId": session_id,
                     "caller": caller_agent or caller,
-                    "delegationDepth": delegation_depth + 1,
+                    "delegationDepth": outgoing_depth,
                 },
             }
         ).encode("utf-8")
@@ -161,6 +190,9 @@ def create_scoped_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Cal
     ) -> str:
         """고정된 대상 Agent Runtime을 호출한다."""
         session_id = session_id or _request_context.get("session_id", "")
+        # 하류로 보낼 depth는 LLM이 정한 delegation_depth 인자가 아니라 이 런타임이
+        # 실제로 수신한 depth(_request_context) 기준으로 누적한다(H3).
+        outgoing_depth = _request_context.get("delegation_depth", 0) + 1
         table_name = os.environ.get("DYNAMODB_TABLE", "aiops-v2-dev-platform")
         table = dynamodb_resource.Table(table_name)
 
@@ -177,9 +209,28 @@ def create_scoped_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Cal
                     "caller": caller_agent,
                     "target": target_agent_id,
                     "prompt_summary": prompt[:100],
-                    "depth": delegation_depth + 1,
+                    "depth": outgoing_depth,
                     "timestamp": time.time(),
                 },
+            )
+
+        # Depth 가드: 비싼 invoke_agent_runtime(read_timeout=900s) 호출 전에 즉시 거부.
+        if outgoing_depth > MAX_DELEGATION_DEPTH:
+            if writer:
+                writer.write_event(
+                    "a2a_delegation",
+                    {
+                        "phase": "error",
+                        "caller": caller_agent,
+                        "target": target_agent_id,
+                        "error": f"Delegation depth {outgoing_depth} exceeds maximum {MAX_DELEGATION_DEPTH}",
+                        "timestamp": time.time(),
+                    },
+                )
+            return json.dumps(
+                {
+                    "error": f"Delegation depth {outgoing_depth} exceeds maximum {MAX_DELEGATION_DEPTH}"
+                }
             )
 
         runtime_info = table.get_item(
@@ -208,7 +259,7 @@ def create_scoped_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Cal
                 "context": {
                     "sessionId": session_id,
                     "caller": caller_agent or caller,
-                    "delegationDepth": delegation_depth + 1,
+                    "delegationDepth": outgoing_depth,
                 },
             }
         ).encode("utf-8")

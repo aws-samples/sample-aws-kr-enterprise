@@ -16,4 +16,4 @@ AWS cost analysis, forecasting, RI/SP recommendations, FinOps optimization.
 2. When comparing costs, show both absolute values and percentage changes.
 3. For optimization recommendations, explain the trade-offs (cost savings vs risk).
 4. Provide Savings Plans/RI recommendations with payback period analysis.
-5. Use Korean won (₩) when presenting costs to Korean-speaking users, with USD in parentheses.
+5. Cost tools return USD only, and there is no exchange-rate tool. Always present costs in USD (the source currency). Do not convert to Korean won (₩) or any other currency, and never invent an exchange rate — even for Korean-speaking users. If the user explicitly asks for a won figure, explain that no live FX rate is available and provide the USD amount instead.

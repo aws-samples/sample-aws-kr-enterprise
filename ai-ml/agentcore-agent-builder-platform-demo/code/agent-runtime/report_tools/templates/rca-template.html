@@ -61,7 +61,7 @@
         <h1>{{ title }}</h1>
         <div class="meta">
             Generated: {{ generatedAt }} |
-            <span class="severity severity-{{ severity }}">{{ severity | upper }}</span>
+            <span class="severity severity-{{ severity | lower }}">{{ severity | upper }}</span>
         </div>
     </div>
 
@@ -79,7 +79,7 @@
             <div class="metric-card">
                 <div class="metric-value">{{ metric.value }}</div>
                 <div class="metric-label">{{ name | upper }}</div>
-                <div class="metric-trend {% if metric.trend != '정상' %}trend-up{% else %}trend-normal{% endif %}">
+                <div class="metric-trend {% set _t = (metric.trend | string | lower) %}{% if _t in ['정상', 'normal', 'stable', 'ok', 'healthy'] %}trend-normal{% elif _t in ['경고', '위험', 'up', 'high', 'critical', 'alarm', 'increasing', 'degraded'] %}trend-up{% endif %}">
                     {{ metric.trend }}
                     {% if metric.period %}({{ metric.period }}){% endif %}
                 </div>
@@ -99,7 +99,7 @@
                 <tr>
                     <td>{{ inc.id }}</td>
                     <td>{{ inc.title }}</td>
-                    <td><span class="severity severity-{{ inc.severity }}">{{ inc.severity }}</span></td>
+                    <td><span class="severity severity-{{ inc.severity | lower }}">{{ inc.severity }}</span></td>
                 </tr>
                 {% endfor %}
                 </tbody>
@@ -129,22 +129,26 @@
     </div>
     {% endif %}
 
+    {% if rootCause %}
     <div class="section">
         <h2>Root Cause</h2>
         <div class="root-cause">
             <p>{{ rootCause }}</p>
         </div>
     </div>
+    {% endif %}
 
+    {% if recommendation %}
     <div class="section">
         <h2>Recommendation</h2>
         <div class="recommendation">
             <p>{{ recommendation }}</p>
         </div>
     </div>
+    {% endif %}
 
     <div class="footer">
-        AIOps Multi Agent Platform v2 — Automated RCA Report
+        AIOps Multi Agent Platform v2 — {{ reportTypeLabel }}
     </div>
 </body>
 </html>
