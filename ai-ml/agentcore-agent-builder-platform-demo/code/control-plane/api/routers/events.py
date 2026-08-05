@@ -2,12 +2,24 @@
 
 import asyncio
 import logging
+import os
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from ulid import ULID
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 logger = logging.getLogger(__name__)
+
+# This endpoint is exempt from Cognito JWT auth (called by EventBridge, which
+# cannot present a user token). It is instead gated by the shared API-key header
+# that the EventBridge connection injects (see modules/compute/eventbridge.tf:
+# api_key key=x-api-source). Overridable via EVENT_API_SOURCE for stronger secrets.
+EXPECTED_API_SOURCE = os.environ.get("EVENT_API_SOURCE", "eventbridge")
+
+
+def _verify_event_source(request: Request):
+    if request.headers.get("x-api-source") != EXPECTED_API_SOURCE:
+        raise HTTPException(status_code=401, detail="Invalid or missing event source")
 
 
 def get_db(request: Request):
@@ -25,6 +37,7 @@ async def receive_alarm(
     ac=Depends(get_agentcore),
 ):
     """CloudWatch Alarm -> EventBridge -> 이 endpoint -> Incident Agent invoke."""
+    _verify_event_source(request)
     body = await request.json()
     session_id = str(ULID())
 

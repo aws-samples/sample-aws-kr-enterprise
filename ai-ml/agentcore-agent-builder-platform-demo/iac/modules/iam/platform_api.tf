@@ -102,6 +102,21 @@ resource "aws_iam_role_policy" "platform_api_task" {
         Resource = "*"
       },
       {
+        # CreateAgentRuntime implicitly provisions a workload identity in the
+        # account's default directory, so deploying an agent from the web UI
+        # (Agent Builder) requires workload-identity management permissions.
+        Sid    = "BedrockAgentCoreWorkloadIdentity"
+        Effect = "Allow"
+        Action = [
+          "bedrock-agentcore:CreateWorkloadIdentity",
+          "bedrock-agentcore:GetWorkloadIdentity",
+          "bedrock-agentcore:UpdateWorkloadIdentity",
+          "bedrock-agentcore:DeleteWorkloadIdentity",
+          "bedrock-agentcore:ListWorkloadIdentities"
+        ]
+        Resource = "arn:aws:bedrock-agentcore:${var.aws_region}:${var.account_id}:workload-identity-directory/default*"
+      },
+      {
         Sid    = "CloudWatchLogs"
         Effect = "Allow"
         Action = [

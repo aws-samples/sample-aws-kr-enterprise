@@ -6,26 +6,32 @@
 |-------------|---------|---------|
 | AWS CLI | v2+ | AWS resource management |
 | Terraform | >= 1.5.0 | Infrastructure provisioning |
-| Docker | 20.10+ | Container image builds |
 | Node.js | >= 18 | Frontend build |
-| Python | >= 3.11 | API and agent runtime |
+| Python | >= 3.11 | API/agent runtime + deploy scripts |
+| boto3 | latest (`pip install boto3`) | Phase 8 (`register-gateway-targets.py`) and other python3 phases; deploy fails at Phase 8 without it |
+
+> **No local Docker required.** The `deploy-all.sh` / CodeBuild path builds all container images in the cloud (Phase 2) — you do not need Docker installed locally.
 
 ### AWS Prerequisites
 
 1. **AWS Account** with Bedrock AgentCore access enabled
-2. **ACM Certificates** (wildcard `*.your-domain.com`):
-   - One in your deployment region (e.g., `ap-northeast-2`)
-   - One in `us-east-1` (required for CloudFront)
-3. **Route53 Hosted Zone** for your domain
-4. **Bedrock Model Access** — Claude Sonnet enabled in your region
+2. **Bedrock foundation-model access** enabled in `AWS_REGION` — both **Claude Sonnet** (agents, `global.anthropic.claude-sonnet-4-6`) and **Claude Opus** (`global.anthropic.claude-opus-4-6-v1`, used by Agent Builder). Without model access, the Playground and Builder fail at invocation time even though deploy succeeds.
+3. **CloudWatch Transaction Search** — required for the Trace Viewer to show data. The terraform `observability` module enables it automatically (`aws/spans` log group + X-Ray trace-segment destination); enable it manually if you deploy without that module (see [README — CloudWatch Transaction Search](../README.md#cloudwatch-transaction-search-trace-viewer)).
+4. **(Optional) Custom domain** — only if you set `DOMAIN_NAME`. Leaving it empty uses the CloudFront default domain (no ACM cert or Route53 needed). For a custom domain you additionally need:
+   - ACM wildcard certificate (`*.your-domain.com`) in your deployment region **and** in `us-east-1` (required for CloudFront)
+   - A Route53 hosted zone for your domain
 
 ## Environment Variables
 
+`AWS_REGION` and `ACCOUNT_ID` are required; `DOMAIN_NAME` and `PROJECT_PREFIX` are optional (matches the README quick start).
+
 ```bash
-export AWS_REGION=ap-northeast-2
+# Required
+export AWS_REGION=us-west-2
 export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export DOMAIN_NAME=your-domain.com
-export CLOUDFRONT_SECRET=$(openssl rand -hex 16)
+
+# Optional
+export DOMAIN_NAME=            # empty = CloudFront default domain
 export PROJECT_PREFIX=aiops-v2-dev
 ```
 
@@ -37,7 +43,7 @@ export PROJECT_PREFIX=aiops-v2-dev
 ./scripts/deploy-all.sh
 ```
 
-This runs all 6 phases automatically. Takes approximately 15-20 minutes.
+This runs all 8 phases automatically. Takes approximately 15-20 minutes.
 
 ### Option B: Step-by-Step
 
@@ -53,28 +59,12 @@ terraform plan
 terraform apply
 ```
 
-#### Phase 2: Container Images
+#### Phase 2: Container Images (CodeBuild — no local Docker)
+
+Images are built in the cloud by CodeBuild and pushed to ECR (`platform-api`, `frontend`, `base-image`, `report-image`):
 
 ```bash
-ECR_BASE="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_BASE"
-
-# Platform API
-docker build -t "${ECR_BASE}/${PROJECT_PREFIX}/platform-api:latest" code/control-plane/api
-docker push "${ECR_BASE}/${PROJECT_PREFIX}/platform-api:latest"
-
-# Frontend
-docker build -t "${ECR_BASE}/${PROJECT_PREFIX}/frontend:latest" code/control-plane/ui
-docker push "${ECR_BASE}/${PROJECT_PREFIX}/frontend:latest"
-
-# Agent Base Image
-docker build -t "${ECR_BASE}/${PROJECT_PREFIX}/base-image:latest" code/agent-runtime
-docker push "${ECR_BASE}/${PROJECT_PREFIX}/base-image:latest"
-
-# Report Image
-docker build -f code/agent-runtime/Dockerfile.report \
-  -t "${ECR_BASE}/${PROJECT_PREFIX}/report-image:latest" code/agent-runtime
-docker push "${ECR_BASE}/${PROJECT_PREFIX}/report-image:latest"
+./scripts/build-images.sh
 ```
 
 #### Phase 3: Seed Data
@@ -105,7 +95,22 @@ aws ecs wait services-stable --cluster "$ECS_CLUSTER" \
 
 ```bash
 ./scripts/deploy-gateways.sh
-./scripts/register-gateway-targets.py
+```
+
+#### Phase 7: MCP Lambda Tools
+
+Deploys the 19 Lambda-backed MCP tools (auto-creates the Lambda execution role):
+
+```bash
+./scripts/deploy-lambda-tools.sh
+```
+
+#### Phase 8: Gateway Targets
+
+Registers tool targets on the 8 gateways (requires Python 3.11+ with boto3):
+
+```bash
+python3 scripts/register-gateway-targets.py
 ```
 
 ## Post-Deployment
@@ -122,7 +127,7 @@ aws cognito-idp admin-create-user \
 
 ### Verify Deployment
 
-1. Access `https://aiops-v2.${DOMAIN_NAME}`
+1. Access the platform URL. With a custom domain set, this is `https://aiops-v2.${DOMAIN_NAME}`; with `DOMAIN_NAME` empty, use the CloudFront default domain (`https://<distribution-id>.cloudfront.net` — from the `cloudfront_distribution_id` Terraform output).
 2. Log in with the created user credentials
 3. Navigate to Agents page — should show pre-configured agents
 4. Open an agent's Playground and send a test message
@@ -131,11 +136,12 @@ aws cognito-idp admin-create-user \
 
 | Issue | Check |
 |-------|-------|
-| 403 on platform URL | CloudFront → ALB secret header mismatch |
+| 403 on platform URL | CloudFront VPC Origin → ALB reachability (security groups, target health) |
 | Cognito redirect loop | Callback URLs in Cognito client configuration |
 | ECS tasks failing | CloudWatch Logs: `/ecs/${PROJECT_PREFIX}/platform-api` |
 | Agent invocation timeout | Bedrock AgentCore service limits, VPC endpoint connectivity |
-| No traces appearing | IAM role permissions for X-Ray, OTEL log group |
+| Playground/Builder fails at invocation | Bedrock model access (Claude Sonnet + Opus) not enabled in `AWS_REGION` |
+| No traces appearing | CloudWatch Transaction Search not enabled; IAM role permissions for X-Ray, OTEL log group |
 
 ## Cleanup
 

@@ -26,6 +26,10 @@ output "s3_reports_bucket" {
   value = module.data.reports_bucket_name
 }
 
+output "reports_distribution_domain" {
+  value = module.cdn.reports_distribution_domain
+}
+
 output "cognito_user_pool_id" {
   value = module.auth.user_pool_id
 }

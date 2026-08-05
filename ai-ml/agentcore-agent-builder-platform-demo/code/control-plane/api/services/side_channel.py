@@ -175,6 +175,17 @@ async def _iter_stream(agentcore_client, runtime_arn, prompt, context):
         try:
             for line in agentcore_client.invoke_runtime_stream(runtime_arn, prompt, context):
                 loop.call_soon_threadsafe(queue.put_nowait, line)
+        except Exception as e:
+            # Surface the failure as an SSE error event instead of silently
+            # ending the stream (which the client can't distinguish from a
+            # normal empty completion). Details are logged server-side.
+            logger.error("invoke_runtime_stream failed for %s: %s", runtime_arn, e)
+            err_line = (
+                "event: error\n"
+                'data: {"error": "Agent runtime invocation failed", '
+                '"code": "runtime_invoke_failed"}'
+            )
+            loop.call_soon_threadsafe(queue.put_nowait, err_line)
         finally:
             loop.call_soon_threadsafe(queue.put_nowait, sentinel)
 
@@ -182,7 +193,11 @@ async def _iter_stream(agentcore_client, runtime_arn, prompt, context):
 
     while True:
         try:
-            item = await asyncio.wait_for(queue.get(), timeout=30)
+            # Keepalive interval must stay well BELOW CloudFront's VPC-origin
+            # OriginReadTimeout (30s) so the stream never goes byte-silent long
+            # enough to be severed — e.g. while the agent blocks on a slow
+            # synchronous A2A delegation (report generation). 10s leaves margin.
+            item = await asyncio.wait_for(queue.get(), timeout=10)
         except asyncio.TimeoutError:
             yield ": keepalive"
             continue

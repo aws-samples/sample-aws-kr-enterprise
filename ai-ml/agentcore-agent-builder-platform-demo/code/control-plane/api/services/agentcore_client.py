@@ -23,7 +23,7 @@ class AgentCoreClient:
         self.runtime_client = boto3.client(
             "bedrock-agentcore",
             region_name=REGION,
-            config=BotoConfig(connect_timeout=10, read_timeout=300),
+            config=BotoConfig(connect_timeout=10, read_timeout=900),
         )
 
     def create_runtime(
@@ -36,6 +36,13 @@ class AgentCoreClient:
             "AWS_REGION": REGION,
             "AGENT_OBSERVABILITY_ENABLED": "true",
         }
+        # Propagate report-generation config so the Report agent's runtime can
+        # write HTML reports to S3/CloudFront. Without these the report_tools
+        # import/use fails and reports are never produced.
+        for var in ("REPORT_BUCKET", "REPORT_CF_DOMAIN", "INCIDENTS_TABLE"):
+            val = os.environ.get(var)
+            if val:
+                environment[var] = val
         if env_vars:
             environment.update(env_vars)
 
@@ -43,16 +50,55 @@ class AgentCoreClient:
         sanitized = re.sub(r"[^a-zA-Z0-9_]", "", agent_id.replace("-", "_"))
         runtime_name = (sanitized if sanitized[0:1].isalpha() else f"a{sanitized}")[:48]
 
-        response = self.control_client.create_agent_runtime(
-            agentRuntimeName=runtime_name,
-            roleArn=AGENTCORE_ROLE_ARN,
-            networkConfiguration={"networkMode": "PUBLIC"},
-            agentRuntimeArtifact={
-                "containerConfiguration": {"containerUri": image_uri}
-            },
-            environmentVariables=environment,
-        )
-        return response.get("agentRuntimeArn", "")
+        try:
+            response = self.control_client.create_agent_runtime(
+                agentRuntimeName=runtime_name,
+                roleArn=AGENTCORE_ROLE_ARN,
+                networkConfiguration={"networkMode": "PUBLIC"},
+                agentRuntimeArtifact={
+                    "containerConfiguration": {"containerUri": image_uri}
+                },
+                environmentVariables=environment,
+            )
+            return response.get("agentRuntimeArn", "")
+        except self.control_client.exceptions.ConflictException:
+            # A runtime with this name already exists (e.g. a prior deploy created
+            # it but the DDB record was lost). Adopt the existing one instead of
+            # failing, so a retry is idempotent.
+            existing = self.find_runtime_by_name(agent_id)
+            if existing and existing.get("runtimeArn"):
+                return existing["runtimeArn"]
+            raise
+
+    def find_runtime_by_name(self, agent_id: str) -> Optional[dict]:
+        """Look up an AgentCore runtime by the sanitized name create_runtime uses.
+
+        Returns {runtimeArn, status, runtimeId} or None. Used to adopt an
+        already-created runtime so a repeated deploy does not raise
+        ConflictException and to heal a lost/stale DDB RUNTIME record.
+        """
+        import re
+
+        sanitized = re.sub(r"[^a-zA-Z0-9_]", "", agent_id.replace("-", "_"))
+        runtime_name = (sanitized if sanitized[0:1].isalpha() else f"a{sanitized}")[:48]
+        try:
+            paginator_token = None
+            while True:
+                kwargs = {"nextToken": paginator_token} if paginator_token else {}
+                response = self.control_client.list_agent_runtimes(**kwargs)
+                for rt in response.get("agentRuntimes", []):
+                    if rt.get("agentRuntimeName") == runtime_name:
+                        return {
+                            "runtimeArn": rt.get("agentRuntimeArn", ""),
+                            "status": rt.get("status", ""),
+                            "runtimeId": rt.get("agentRuntimeId", ""),
+                        }
+                paginator_token = response.get("nextToken")
+                if not paginator_token:
+                    break
+        except Exception:
+            pass
+        return None
 
     def create_runtime_endpoint(self, runtime_id: str) -> dict:
         """Control Plane: AgentCore Runtime Endpoint 생성.

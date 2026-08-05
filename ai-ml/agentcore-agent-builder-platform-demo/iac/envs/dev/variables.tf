@@ -27,3 +27,9 @@ variable "domain_name" {
   default     = ""
   description = "Route53 hosted zone domain name (optional — if empty, uses CloudFront default domain)"
 }
+
+variable "alb_deletion_protection" {
+  type        = bool
+  default     = false
+  description = "ALB deletion protection. Defaults to false for this demo env so `terraform destroy` can tear down the ALB; set true for prod."
+}

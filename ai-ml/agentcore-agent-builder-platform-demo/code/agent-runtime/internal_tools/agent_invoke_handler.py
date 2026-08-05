@@ -31,7 +31,7 @@ def create_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Callable:
             _client_cache["client"] = boto3.client(
                 "bedrock-agentcore",
                 region_name=region,
-                config=BotoConfig(read_timeout=300),
+                config=BotoConfig(read_timeout=900),
             )
         return _client_cache["client"]
 
@@ -103,7 +103,11 @@ def create_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Callable:
             "accept": "application/json",
             "payload": payload,
         }
-        if session_id:
+        # AgentCore requires runtimeSessionId to be >= 33 chars; passing a
+        # shorter value raises ValidationException. Only forward it when valid
+        # (matches chat.py / agentcore_client.py); otherwise omit it and let
+        # AgentCore generate one.
+        if session_id and len(session_id) >= 33:
             invoke_kwargs["runtimeSessionId"] = session_id
         response = ac_client.invoke_agent_runtime(**invoke_kwargs)
         body = response.get("response", response.get("body", b""))
@@ -145,7 +149,7 @@ def create_scoped_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Cal
             _client_cache["client"] = boto3.client(
                 "bedrock-agentcore",
                 region_name=region,
-                config=BotoConfig(read_timeout=300),
+                config=BotoConfig(read_timeout=900),
             )
         return _client_cache["client"]
 
@@ -216,7 +220,11 @@ def create_scoped_agent_invoke(tool_config: dict, dynamodb_resource: Any) -> Cal
             "accept": "application/json",
             "payload": payload,
         }
-        if session_id:
+        # AgentCore requires runtimeSessionId to be >= 33 chars; passing a
+        # shorter value raises ValidationException. Only forward it when valid
+        # (matches chat.py / agentcore_client.py); otherwise omit it and let
+        # AgentCore generate one.
+        if session_id and len(session_id) >= 33:
             invoke_kwargs["runtimeSessionId"] = session_id
         response = ac_client.invoke_agent_runtime(**invoke_kwargs)
         body = response.get("response", response.get("body", b""))

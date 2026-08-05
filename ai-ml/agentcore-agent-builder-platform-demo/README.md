@@ -50,6 +50,8 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ```
 
 > `deploy-all.sh`가 완료되면 웹 UI에서 Agent 정의 → Deploy → Playground 테스트까지 가능합니다.
+>
+> 📘 **Agent 생성·배포 가이드**: 웹 UI에서 Agent를 만들고 배포·테스트하는 단계별 절차는 [`docs/agent-builder-guide.md`](docs/agent-builder-guide.md)를 참고하세요.
 
 ## 배포 단계 (deploy-all.sh)
 
@@ -89,9 +91,25 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 - 배포자 자격증명은 **Admin/PowerUser급 권한** 필요 — Terraform(VPC/IAM/ECS 생성)에 더해, Phase 7에서 Lambda 실행 role을 자동 생성하기 위한 `iam:CreateRole` / `iam:AttachRolePolicy` 권한 포함
 - Terraform >= 1.5.0
 - Node.js >= 18
+- **Python 3.11+ 와 boto3** (`pip install boto3`) — Phase 8(`register-gateway-targets.py`)을 비롯한 여러 단계가 `import boto3`로 python3를 실행합니다. boto3가 없으면 Phase 8에서 배포가 실패합니다
 - AWS CLI v2
+- **Bedrock foundation-model 액세스** (`AWS_REGION`에서 활성화) — 에이전트용 **Claude Sonnet**(`global.anthropic.claude-sonnet-4-6`)과 Agent Builder가 사용하는 **Claude Opus**(`global.anthropic.claude-opus-4-6-v1`) 모두 필요합니다. 모델 액세스가 없으면 배포는 성공해도 Playground와 Builder가 호출 시점에 실패합니다
 - (로컬 Docker 불필요) 컨테이너 이미지는 Phase 2에서 **CodeBuild**가 클라우드에서 빌드합니다
 - (선택) custom domain을 사용하려면 ACM wildcard 인증서 + Route53 hosted zone
+
+### CloudWatch Transaction Search (Trace Viewer)
+
+Trace Viewer에 데이터가 표시되려면 **CloudWatch Transaction Search**가 활성화되어 있어야 합니다. 신규 terraform `observability` 모듈이 이를 자동으로 활성화합니다(`aws/spans` 로그 그룹 + X-Ray trace-segment 대상 설정). 해당 모듈 없이 배포하는 경우 아래 4개 명령으로 수동 활성화하세요:
+
+```bash
+aws logs create-log-group --log-group-name aws/spans 2>/dev/null || true
+# 'TransactionSearchAccess' CloudWatch Logs 리소스 정책을 추가합니다:
+# xray.amazonaws.com 에 aws/spans:* 및 /aws/application-signals/data:* 에 대한
+# logs:PutLogEvents 를 허용하고, aws:SourceArn(ArnLike arn:aws:xray:<region>:<acct>:*)
+# 과 aws:SourceAccount 조건을 지정한 뒤:
+aws xray update-trace-segment-destination --destination CloudWatchLogs --region <region>
+aws xray update-indexing-rule --name Default --rule '{"Probabilistic":{"DesiredSamplingPercentage":100}}' --region <region>
+```
 
 ## 기술 스택
 
@@ -105,7 +123,7 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 | CDN/Auth | CloudFront + Cognito |
 | Data | DynamoDB, S3 |
 | Build | CodeBuild (x86 + arm64) |
-| IaC | Terraform (8 modules) |
+| IaC | Terraform (9 modules) |
 | Observability | X-Ray, CloudWatch, OTEL |
 
 ## 환경변수
@@ -132,6 +150,23 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 | cdn | CloudFront Distribution, VPC Origin | ~5 |
 | build | CodeBuild Projects (x86, arm64), S3 source bucket | 4 |
 | **Total** | | **~70** |
+
+## IAM / 최소 권한 참고
+
+두 개의 IAM role은 `bedrock-agentcore:*` 와일드카드 대신 **명시적인 bedrock-agentcore 액션 목록**으로 최소 권한을 구성합니다:
+
+- **platform-api task role** — runtime CRUD(`CreateAgentRuntime`/`CreateAgentRuntimeEndpoint`/`GetAgentRuntime`/`GetAgentRuntimeEndpoint`/`ListAgentRuntimes`/`DeleteAgentRuntime`/`InvokeAgentRuntime`) + `CreateWorkloadIdentity`/`GetWorkloadIdentity`/`UpdateWorkloadIdentity`/`DeleteWorkloadIdentity`/`ListWorkloadIdentities`(Agent Builder에서 에이전트를 deploy할 때 workload identity가 생성됨) + gateway `ListGateways`/`ListGatewayTargets`/`GetGateway`.
+- **agentcore runtime role** — invoke(`InvokeAgentRuntime`/`GetAgentRuntime`) 외에, 런타임이 gateway 이름→id를 해석하기 위해 `ListGateways`/`GetGateway`/`ListGatewayTargets` 필요.
+
+> **확장 시 주의:** Memory, gateway/target 쓰기(write), CodeInterpreter, Browser, runtime Update/tagging 등 **다른 bedrock-agentcore API**를 호출하는 기능을 추가하면 이 정책들도 함께 확장해야 합니다. 넓은 `bedrock-agentcore:*` 하나면 모두 커버되지만, 여기서는 의도적으로 피했습니다. 현재 **부여되지 않은** 대표 액션(추가 필요 시 참고):
+> ```
+> # not currently granted — add when you enable the corresponding feature:
+> #   bedrock-agentcore:CreateMemory / GetMemory / ...          (Memory)
+> #   bedrock-agentcore:CreateGateway / UpdateGateway /
+> #       CreateGatewayTarget / UpdateGatewayTarget / ...        (gateway/target write)
+> #   bedrock-agentcore:*CodeInterpreter* / *Browser*            (CodeInterpreter, Browser)
+> #   bedrock-agentcore:UpdateAgentRuntime / TagResource / ...   (runtime Update/tagging)
+> ```
 
 ## 이미지 빌드
 
@@ -165,7 +200,7 @@ agentcore-agent-builder-platform-demo/
 ├── docs/
 │   └── iam-policies/      # Lambda 실행 role IAM 정책 문서 (가이드 + JSON)
 ├── iac/
-│   ├── modules/           # 8개 Terraform 모듈
+│   ├── modules/           # 9개 Terraform 모듈
 │   │   ├── network/       # VPC, Subnets, NAT, VPC Endpoints
 │   │   ├── data/          # DynamoDB, S3
 │   │   ├── auth/          # Cognito
@@ -173,7 +208,8 @@ agentcore-agent-builder-platform-demo/
 │   │   ├── iam/           # IAM Roles
 │   │   ├── compute/       # ECS Fargate, ALB, EventBridge
 │   │   ├── cdn/           # CloudFront, Route53
-│   │   └── build/         # CodeBuild (x86 + arm64)
+│   │   ├── build/         # CodeBuild (x86 + arm64)
+│   │   └── observability/ # CloudWatch Transaction Search (Trace Viewer)
 │   └── envs/dev/          # Root module (환경 설정)
 └── scripts/
     ├── deploy-all.sh          # 한 번에 전체 배포
@@ -255,7 +291,7 @@ agentcore-agent-builder-platform-demo/
 ├── docs/
 │   └── iam-policies/      # Lambda execution role IAM policy docs (guide + JSON)
 ├── iac/
-│   ├── modules/           # 8 Terraform modules
+│   ├── modules/           # 9 Terraform modules
 │   │   ├── network/       # VPC, Subnets, NAT, VPC Endpoints
 │   │   ├── data/          # DynamoDB, S3
 │   │   ├── auth/          # Cognito
@@ -263,7 +299,8 @@ agentcore-agent-builder-platform-demo/
 │   │   ├── iam/           # IAM Roles
 │   │   ├── compute/       # ECS Fargate, ALB, EventBridge
 │   │   ├── cdn/           # CloudFront, Route53
-│   │   └── build/         # CodeBuild (x86 + arm64)
+│   │   ├── build/         # CodeBuild (x86 + arm64)
+│   │   └── observability/ # CloudWatch Transaction Search (Trace Viewer)
 │   └── envs/dev/          # Root module (environment config)
 └── scripts/
     ├── deploy-all.sh          # One-shot full deployment
@@ -281,9 +318,25 @@ agentcore-agent-builder-platform-demo/
 - Deployer credentials with **Admin/PowerUser-level permissions** — beyond Terraform (VPC/IAM/ECS), Phase 7 auto-creates the Lambda execution role, requiring `iam:CreateRole` / `iam:AttachRolePolicy`
 - Terraform >= 1.5.0
 - Node.js >= 18
+- **Python 3.11+ with boto3** (`pip install boto3`) — Phase 8 (`register-gateway-targets.py`) and other phases run python3 with `import boto3`; deploy fails at Phase 8 without it
 - AWS CLI v2 configured
+- **Bedrock foundation-model access enabled in `AWS_REGION`** — both **Claude Sonnet** (agents, `global.anthropic.claude-sonnet-4-6`) and **Claude Opus** (`global.anthropic.claude-opus-4-6-v1`, used by Agent Builder). Without model access, the Playground and Builder fail at invocation time even though deploy succeeds
 - (No local Docker required) container images are built in the cloud by **CodeBuild** in Phase 2
 - (Optional) ACM wildcard certificate + Route53 hosted zone for custom domain
+
+### CloudWatch Transaction Search (Trace Viewer)
+
+The Trace Viewer needs **CloudWatch Transaction Search** enabled to show data. A new terraform `observability` module enables it automatically (`aws/spans` log group + X-Ray trace-segment destination). If deploying without that module, enable it manually with these 4 commands:
+
+```bash
+aws logs create-log-group --log-group-name aws/spans 2>/dev/null || true
+# put a CloudWatch Logs resource policy 'TransactionSearchAccess' allowing
+# xray.amazonaws.com logs:PutLogEvents on aws/spans:* and
+# /aws/application-signals/data:* with aws:SourceArn (ArnLike arn:aws:xray:<region>:<acct>:*)
+# and aws:SourceAccount conditions, then:
+aws xray update-trace-segment-destination --destination CloudWatchLogs --region <region>
+aws xray update-indexing-rule --name Default --rule '{"Probabilistic":{"DesiredSamplingPercentage":100}}' --region <region>
+```
 
 ## Quick Start
 
@@ -301,6 +354,8 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ```
 
 > Once `deploy-all.sh` completes, you can define agents, deploy them, and test via the Playground — all from the web UI.
+>
+> 📘 **Agent Build & Deploy Guide**: for a step-by-step walkthrough of creating, deploying, and testing an agent in the web UI, see [`docs/agent-builder-guide.md`](docs/agent-builder-guide.md).
 
 ## Deployment Phases (deploy-all.sh)
 
@@ -369,6 +424,23 @@ export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 - EventBridge rule captures CloudWatch Alarm state changes
 - Automatically triggers incident RCA agent
 - Generates structured reports saved to S3
+
+## IAM / Least-Privilege Note
+
+The two IAM roles use **explicit bedrock-agentcore action lists** for least privilege instead of a broad `bedrock-agentcore:*`:
+
+- **platform-api task role** — runtime CRUD (`CreateAgentRuntime`/`CreateAgentRuntimeEndpoint`/`GetAgentRuntime`/`GetAgentRuntimeEndpoint`/`ListAgentRuntimes`/`DeleteAgentRuntime`/`InvokeAgentRuntime`) + `CreateWorkloadIdentity`/`GetWorkloadIdentity`/`UpdateWorkloadIdentity`/`DeleteWorkloadIdentity`/`ListWorkloadIdentities` (deploying an agent from Agent Builder creates a workload identity) + gateway `ListGateways`/`ListGatewayTargets`/`GetGateway`.
+- **agentcore runtime role** — besides invoke (`InvokeAgentRuntime`/`GetAgentRuntime`), it needs `ListGateways`/`GetGateway`/`ListGatewayTargets` because the runtime resolves a gateway name → id.
+
+> **When extending:** if you add features that call **other bedrock-agentcore APIs** (Memory, gateway/target write, CodeInterpreter, Browser, runtime Update/tagging), you must extend these policies. A broad `bedrock-agentcore:*` would cover them but is intentionally avoided here. Actions **not currently granted** (add them when you enable the corresponding feature):
+> ```
+> # not currently granted — add when you enable the corresponding feature:
+> #   bedrock-agentcore:CreateMemory / GetMemory / ...          (Memory)
+> #   bedrock-agentcore:CreateGateway / UpdateGateway /
+> #       CreateGatewayTarget / UpdateGatewayTarget / ...        (gateway/target write)
+> #   bedrock-agentcore:*CodeInterpreter* / *Browser*            (CodeInterpreter, Browser)
+> #   bedrock-agentcore:UpdateAgentRuntime / TagResource / ...   (runtime Update/tagging)
+> ```
 
 ## Cleanup
 

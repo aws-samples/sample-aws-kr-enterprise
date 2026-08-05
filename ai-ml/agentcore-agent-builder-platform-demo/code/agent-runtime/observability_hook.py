@@ -1,7 +1,7 @@
 """Observability Hook — Strands HookProvider로 Agent 활동을 Side-Channel에 실시간 발행.
 
 BeforeToolCallEvent/AfterToolCallEvent를 구독하여 tool_call 이벤트를 DynamoDB Side-Channel에 기록.
-Supervisor의 경우 invoke_agent 호출을 routing 이벤트로도 발행.
+Supervisor의 경우 invoke_domain_agent 호출을 routing 이벤트로도 발행.
 AgentCore OpenTelemetry와 병행 사용 가능. Spec Section 3.3, 8."""
 
 from __future__ import annotations
@@ -21,7 +21,10 @@ from side_channel import SideChannelWriter
 
 logger = logging.getLogger(__name__)
 
-ROUTING_TOOL_NAME = "invoke_agent"
+# Must match the supervisor's routing tool name seeded in scripts/seed-dynamodb.sh
+# (supervisor-001 internalTools -> "invoke_domain_agent", type agent_invoke).
+# Previously "invoke_agent", which never matched, so routing events were never emitted.
+ROUTING_TOOL_NAME = "invoke_domain_agent"
 
 
 class ObservabilityHook(HookProvider):

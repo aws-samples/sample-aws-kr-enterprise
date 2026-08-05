@@ -31,10 +31,11 @@ export default function DesignPage() {
   const handleDeploy = async () => {
     setDeploying(true);
     try {
+      // deploy() resolves only after the backend has waited for the runtime to
+      // reach READY (or errored), so redirect once it actually returns rather
+      // than on a fixed timer that fires before provisioning completes.
       await agentsApi.deploy(agentId);
-      setTimeout(() => {
-        router.push(`/agents/${agentId}`);
-      }, 3000);
+      router.push(`/agents/${agentId}`);
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';

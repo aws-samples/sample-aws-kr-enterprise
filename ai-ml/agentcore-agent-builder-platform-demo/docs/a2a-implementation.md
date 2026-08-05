@@ -47,6 +47,14 @@ def tool_fn(agent_id, prompt, session_id, caller, delegation_depth):
 3. **Side-Channel Events**: `a2a_delegation` events emitted for UI real-time tracking
 4. **Lazy Client Initialization**: boto3 client cached per agent instance
 
+## Known Limitations
+
+The delegation entries in the Agent Registry carry `timeout` and `scope` fields (see `scripts/seed-dynamodb.sh`), but these are **stored/displayed only — they are not enforced at runtime**. The `delegations → scoped_agent_invoke` conversion in `code/agent-runtime/agent_runner.py` reads only `targetAgent` and `purpose`; the other fields are dropped.
+
+- **Per-delegation `timeout` is not enforced.** The seed value (e.g. 60/90s) is ignored; the only effective bound is the boto3 client `read_timeout` (900s) in `agent_invoke_handler.py`.
+- **Per-delegation `scope` (tool allow-list) is not enforced.** The delegated child agent runs with its full toolset, not the subset listed in `scope`.
+- Treat both fields as declarative metadata for the demo UI. Enforcing them would require passing `timeout`/`scope` through to the invoke handler (e.g. a per-call `read_timeout` and a tool filter on the child).
+
 ## How to Implement A2A on AgentCore (Reference)
 
 ### Option 1: AgentCore Native (This Sample)

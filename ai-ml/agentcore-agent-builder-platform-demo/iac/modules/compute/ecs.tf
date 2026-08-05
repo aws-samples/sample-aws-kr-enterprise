@@ -65,10 +65,14 @@ resource "aws_ecs_task_definition" "platform_api" {
       environment = [
         { name = "AWS_REGION", value = var.aws_region },
         { name = "DYNAMODB_TABLE", value = var.platform_table_name },
+        { name = "INCIDENTS_TABLE", value = var.incidents_table_name },
         { name = "BASE_IMAGE_URI", value = "${var.ecr_repo_urls["base-image"]}:latest" },
         { name = "AGENTCORE_ROLE_ARN", value = var.agentcore_runtime_role_arn },
         { name = "COGNITO_USER_POOL_ID", value = var.cognito_user_pool_id },
         { name = "COGNITO_CLIENT_ID", value = var.cognito_client_id },
+        # Propagated to agent runtimes (report agent writes reports here).
+        { name = "REPORT_BUCKET", value = var.reports_bucket_name },
+        { name = "REPORT_CF_DOMAIN", value = var.reports_cf_domain },
       ]
       logConfiguration = {
         logDriver = "awslogs"

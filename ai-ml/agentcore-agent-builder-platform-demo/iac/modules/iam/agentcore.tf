@@ -89,6 +89,21 @@ resource "aws_iam_role_policy" "agentcore_runtime" {
         ]
       },
       {
+        # The agent runtime resolves gateway name -> real (suffixed) gatewayId
+        # via list_gateways() (mcp_connector.py) before opening the MCP
+        # connection. Without these, resolution silently falls back to the
+        # bare name and the MCP endpoint returns HTTP 400. Account-scoped
+        # list/get ops do not support resource-level constraints.
+        Sid    = "BedrockAgentCoreGatewayDiscovery"
+        Effect = "Allow"
+        Action = [
+          "bedrock-agentcore:ListGateways",
+          "bedrock-agentcore:GetGateway",
+          "bedrock-agentcore:ListGatewayTargets"
+        ]
+        Resource = "*"
+      },
+      {
         Sid    = "ECRPull"
         Effect = "Allow"
         Action = [

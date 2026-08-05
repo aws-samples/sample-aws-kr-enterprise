@@ -185,6 +185,23 @@ export default function PlaygroundPage() {
               if (currentEventType === 'hitl') {
                 setHitlAction(data);
               }
+
+              if (currentEventType === 'error') {
+                // Surface an explicit, actionable error to the user instead of
+                // silently ending the stream. Backend sends { error, code, hint? }.
+                const errMsg = data.error || 'Agent error';
+                const hint = data.hint ? `\n\n💡 ${data.hint}` : '';
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    role: 'system',
+                    content: `⚠️ ${errMsg}${hint}`,
+                    timestamp: new Date().toISOString(),
+                    events: sseEventsRef.current,
+                  },
+                ]);
+                streamingMsgAdded = true;
+              }
             } catch {
               // ignore unparseable data lines
             }

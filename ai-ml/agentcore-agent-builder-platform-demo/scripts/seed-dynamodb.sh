@@ -8,6 +8,7 @@ if [ -z "${AWS_REGION:-}" ]; then
     exit 1
 fi
 REGION="$AWS_REGION"
+: "${PROJECT_PREFIX:=aiops-v2-dev}"
 
 # Resolve project root so prompt files load regardless of the caller's cwd.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,7 +47,7 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<I
   "agentId": {"S": "supervisor-001"},
   "name": {"S": "Supervisor"},
   "contextBoundary": {"S": "Route user requests to the most appropriate domain agent"},
-  "model": {"S": "claude-sonnet-4-6"},
+  "model": {"S": "global.anthropic.claude-sonnet-4-6"},
   "systemPrompt": {"S": "${SUPERVISOR_PROMPT}"},
   "gateways": {"L": []},
   "delegations": {"L": []},
@@ -77,7 +78,7 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<I
   "agentId": {"S": "incident-agent-001"},
   "name": {"S": "Incident Agent"},
   "contextBoundary": {"S": "Incident management — create, track, and analyze incidents"},
-  "model": {"S": "claude-sonnet-4-6"},
+  "model": {"S": "global.anthropic.claude-sonnet-4-6"},
   "systemPrompt": {"S": "${INCIDENT_PROMPT}"},
   "gateways": {"L": [
     {"M": {"gatewayId": {"S": "$MONITORING_GW"}, "toolFilter": {"L": [{"S": "get_active_alarms"}, {"S": "get_alarm_history"}, {"S": "analyze_log_group"}]}}}
@@ -112,7 +113,7 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<I
   "agentId": {"S": "observability-agent-001"},
   "name": {"S": "Observability Agent"},
   "contextBoundary": {"S": "Cloud resource observability — metrics, logs, alarms, audit trail, service discovery"},
-  "model": {"S": "claude-sonnet-4-6"},
+  "model": {"S": "global.anthropic.claude-sonnet-4-6"},
   "systemPrompt": {"S": "${OBS_PROMPT}"},
   "gateways": {"L": [
     {"M": {"gatewayId": {"S": "$MONITORING_GW"}, "toolFilter": {"S": "all"}}},
@@ -143,7 +144,7 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<I
   "agentId": {"S": "rca-agent-001"},
   "name": {"S": "RCA Agent"},
   "contextBoundary": {"S": "Root cause analysis for cloud service incidents"},
-  "model": {"S": "claude-sonnet-4-6"},
+  "model": {"S": "global.anthropic.claude-sonnet-4-6"},
   "systemPrompt": {"S": "${RCA_PROMPT}"},
   "gateways": {"L": [
     {"M": {"gatewayId": {"S": "$MONITORING_GW"}, "toolFilter": {"L": [{"S": "get_metric_data"}, {"S": "get_active_alarms"}, {"S": "analyze_log_group"}, {"S": "execute_log_insights_query"}]}}}
@@ -177,14 +178,13 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<I
   "agentId": {"S": "report-agent-001"},
   "name": {"S": "Report Generator Agent"},
   "contextBoundary": {"S": "Generate HTML/CSS reports from structured analysis data"},
-  "model": {"S": "claude-sonnet-4-6"},
+  "model": {"S": "global.anthropic.claude-sonnet-4-6"},
+  "maxTokens": {"N": "8192"},
   "systemPrompt": {"S": "${REPORT_PROMPT}"},
   "gateways": {"L": []},
   "delegations": {"L": []},
   "internalTools": {"L": [
-    {"M": {"name": {"S": "render_report"}, "description": {"S": "Render HTML with Jinja2 template"}, "type": {"S": "python_function"}, "module": {"S": "report_tools.renderer"}}},
-    {"M": {"name": {"S": "upload_to_s3"}, "description": {"S": "Upload report to S3"}, "type": {"S": "python_function"}, "module": {"S": "report_tools.s3_uploader"}}},
-    {"M": {"name": {"S": "generate_signed_url"}, "description": {"S": "Generate signed URL"}, "type": {"S": "python_function"}, "module": {"S": "report_tools.s3_uploader"}}}
+    {"M": {"name": {"S": "publish_report"}, "description": {"S": "Render structured report data to HTML and publish to S3; returns the shareable CloudFront URL"}, "type": {"S": "python_function"}, "module": {"S": "report_tools.s3_uploader"}}}
   ]},
   "harness": {"M": {
     "preHooks": {"L": [{"S": "scope-validation"}]},
@@ -195,7 +195,7 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<I
   "triggers": {"L": []},
   "createdBy": {"S": "platform"},
   "version": {"N": "1"},
-  "metadata": {"M": {"supportedReportTypes": {"L": [{"S": "rca"}, {"S": "incident"}, {"S": "health-check"}, {"S": "daily-summary"}]}}}
+  "metadata": {"M": {"supportedReportTypes": {"L": [{"S": "rca"}, {"S": "incident"}, {"S": "health-check"}, {"S": "daily-summary"}, {"S": "security-audit"}]}}}
 }
 ITEM
 )"
@@ -210,7 +210,7 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<I
   "agentId": {"S": "data-agent-001"},
   "name": {"S": "Data Agent"},
   "contextBoundary": {"S": "Database management and monitoring — DynamoDB, RDS/Aurora, ElastiCache/Valkey, MSK Kafka"},
-  "model": {"S": "claude-sonnet-4-6"},
+  "model": {"S": "global.anthropic.claude-sonnet-4-6"},
   "systemPrompt": {"S": "${DATA_PROMPT}"},
   "gateways": {"L": [
     {"M": {"gatewayId": {"S": "$DATA_GW"}, "toolFilter": {"S": "all"}}}
@@ -240,7 +240,7 @@ aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "$(cat <<I
   "agentId": {"S": "cost-agent-001"},
   "name": {"S": "Cost Agent"},
   "contextBoundary": {"S": "AWS cost analysis, forecasting, RI/SP recommendations, FinOps optimization"},
-  "model": {"S": "claude-sonnet-4-6"},
+  "model": {"S": "global.anthropic.claude-sonnet-4-6"},
   "systemPrompt": {"S": "${COST_PROMPT}"},
   "gateways": {"L": [
     {"M": {"gatewayId": {"S": "$COST_GW"}, "toolFilter": {"S": "all"}}}

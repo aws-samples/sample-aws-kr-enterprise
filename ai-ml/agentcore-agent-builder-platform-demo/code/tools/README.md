@@ -16,8 +16,8 @@ required; the deploy script zips `<handler>.py` + `cross_account.py` directly.
 | File | Lambda function | Description |
 |------|-----------------|-------------|
 | `network_mcp.py` | `awsops-network-mcp` | VPC config, subnets, SG/NACL/route tables, Transit Gateways, Network Firewalls |
-| `reachability.py` | `awsops-reachability-analyzer` | VPC Reachability Analyzer path analysis (stub) |
-| `flowmonitor.py` | `awsops-flow-monitor` | VPC Flow Monitor metrics (stub) |
+| `reachability.py` | `awsops-reachability-analyzer` | VPC Reachability Analyzer path analysis |
+| `flowmonitor.py` | `awsops-flow-monitor` | VPC Flow Monitor metrics |
 
 ### container
 | File | Lambda function | Description |
