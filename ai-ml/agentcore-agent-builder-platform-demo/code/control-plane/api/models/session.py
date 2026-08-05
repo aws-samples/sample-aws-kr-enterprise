@@ -24,8 +24,12 @@ class SessionEvent(BaseModel):
 
 
 class HITLRequest(BaseModel):
-    action: str
+    # Matches the payload the Playground UI actually posts: {approved, comment}.
+    # `action` is optional/advisory metadata (the platform does not enforce an
+    # approval gate — feedback is recorded but never blocks execution).
     approved: bool
+    comment: str = ""
+    action: str = ""
     resolvedBy: str = ""
 
 

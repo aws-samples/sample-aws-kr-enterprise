@@ -211,7 +211,11 @@ class AgentCoreClient:
             "payload": payload_bytes,
         }
         session_id = (context or {}).get("sessionId", "")
-        if session_id:
+        # AgentCore rejects runtimeSessionId shorter than 33 chars with a
+        # ValidationException. A canonical ULID is only 26 chars, so guard the
+        # same way invoke_runtime_stream and the A2A handlers do — omit the
+        # session id when it is too short rather than failing the whole invoke.
+        if session_id and len(session_id) >= 33:
             invoke_kwargs["runtimeSessionId"] = session_id
         response = self.runtime_client.invoke_agent_runtime(**invoke_kwargs)
 

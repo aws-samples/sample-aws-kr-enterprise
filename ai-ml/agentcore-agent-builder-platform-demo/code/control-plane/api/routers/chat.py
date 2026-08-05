@@ -104,13 +104,20 @@ async def submit_feedback(
     req: HITLRequest,
     db=Depends(get_db),
 ):
+    """Record human feedback (approve/reject + comment) for a session.
+
+    This is recorded for audit/review only — the platform does NOT implement a
+    runtime approval gate, so this feedback does not pause, block, or roll back
+    any agent action. It simply persists the reviewer's decision.
+    """
     item = {
         "PK": f"SESSION#{session_id}",
         "SK": f"HITL#{str(ULID())}",
-        "action": req.action,
         "agentId": agent_id,
         "status": "approved" if req.approved else "rejected",
+        "comment": req.comment,
+        "action": req.action,
         "resolvedBy": req.resolvedBy,
     }
     db.table.put_item(Item=item)
-    return {"sessionId": session_id, "status": item["status"]}
+    return {"sessionId": session_id, "status": item["status"], "recorded": True}

@@ -1,5 +1,6 @@
 """Agent Lifecycle CRUD. Spec Section 3.2."""
 
+import logging
 import os
 from datetime import datetime, timezone
 
@@ -9,6 +10,7 @@ from ulid import ULID
 from models.agent import AgentCreateRequest, AgentUpdateRequest
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
+logger = logging.getLogger(__name__)
 
 
 def get_db(request: Request):
@@ -83,7 +85,19 @@ async def update_agent(agent_id: str, req: AgentUpdateRequest, db=Depends(get_db
 
 
 @router.delete("/{agent_id}")
-async def delete_agent(agent_id: str, db=Depends(get_db)):
+async def delete_agent(agent_id: str, db=Depends(get_db), ac=Depends(get_agentcore)):
+    # Tear down the live AgentCore runtime FIRST, while the runtimeArn is still
+    # recorded. Otherwise db.delete_agent discards the RUNTIME item (the only
+    # place the ARN is stored) and leaves a billable runtime orphaned with no
+    # ARN in the platform (M10).
+    runtime = db.get_runtime_status(agent_id)
+    if runtime and runtime.get("runtimeArn"):
+        try:
+            ac.delete_runtime(runtime["runtimeArn"])
+        except Exception as e:
+            logger.warning(
+                "Failed to delete AgentCore runtime for %s: %s", agent_id, e
+            )
     db.delete_agent(agent_id)
     db.unregister_from_supervisor(agent_id)
     return {"agentId": agent_id, "status": "deleted"}
