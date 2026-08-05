@@ -39,8 +39,17 @@ async def _run_logs_insights_query(query: str, start_time: int, end_time: int) -
             queryString=query,
         )
     except logs.exceptions.ResourceNotFoundException:
-        logger.info("spans log group %s not found yet — returning empty result", SPANS_LOG_GROUP)
-        return {"results": [], "status": "Complete"}
+        # The spans log group does not exist. This is DIFFERENT from a query
+        # that ran and matched zero spans: it means Transaction Search span
+        # storage is not wired (aws/spans not created), so the Trace Viewer
+        # would be permanently empty. Flag it so callers can surface a clear
+        # diagnostic instead of a silent, indistinguishable empty result.
+        logger.warning(
+            "spans log group %s does not exist — Transaction Search span "
+            "storage is not provisioned; Trace Viewer will be empty",
+            SPANS_LOG_GROUP,
+        )
+        return {"results": [], "status": "Complete", "spansLogGroupMissing": True}
 
     query_id = query_res["queryId"]
     result: dict = {}
@@ -109,10 +118,16 @@ async def list_sessions(
                 "startTime": record.get("@timestamp", ""),
             }
         )
-    return {
+    resp = {
         "sessions": sessions,
         "totalTraces": sum(len(v) for v in sessions.values()),
     }
+    if result.get("spansLogGroupMissing"):
+        resp["diagnostic"] = (
+            "Span storage (aws/spans log group) is not provisioned — no traces "
+            "can be shown. Ensure Transaction Search span storage exists."
+        )
+    return resp
 
 
 @router.get("/traces/{trace_id}")
@@ -202,7 +217,13 @@ async def get_trace_logs(trace_id: str):
                 }
             )
 
-    return {"traceId": trace_id, "spans": otel_spans, "spanCount": len(otel_spans)}
+    resp = {"traceId": trace_id, "spans": otel_spans, "spanCount": len(otel_spans)}
+    if result.get("spansLogGroupMissing"):
+        resp["diagnostic"] = (
+            "Span storage (aws/spans log group) is not provisioned — no span "
+            "detail available for this trace."
+        )
+    return resp
 
 
 @router.get("/service-map")
@@ -295,10 +316,14 @@ async def get_session_traces(session_id: str, hours: int = Query(default=24)):
     end_time = int(time.time())
     start_time = end_time - hours * 3600
 
+    # After `stats ... by traceId` only the grouped/aggregated fields survive,
+    # so sorting or reading @timestamp directly is invalid (it references an
+    # absent field). Carry the latest span time through the aggregation with
+    # latest(@timestamp) and sort/read that instead.
     query = f"""filter attributes.`session.id` = "{session_id}"
-| fields @timestamp, traceId, name, spanId, parentSpanId, durationNano, @message
-| stats count() as spanCount by traceId
-| sort @timestamp desc
+| fields @timestamp, traceId
+| stats count() as spanCount, max(@timestamp) as latestTime by traceId
+| sort latestTime desc
 | limit 50"""
 
     result = await _run_logs_insights_query(query, start_time, end_time)
@@ -310,15 +335,21 @@ async def get_session_traces(session_id: str, hours: int = Query(default=24)):
             {
                 "traceId": record.get("traceId", ""),
                 "spanCount": int(record.get("spanCount", 0) or 0),
-                "timestamp": record.get("@timestamp", ""),
+                "timestamp": record.get("latestTime", ""),
             }
         )
 
-    return {
+    resp = {
         "sessionId": session_id,
         "traces": traces,
         "traceCount": len(traces),
     }
+    if result.get("spansLogGroupMissing"):
+        resp["diagnostic"] = (
+            "Span storage (aws/spans log group) is not provisioned — no traces "
+            "can be shown for this session."
+        )
+    return resp
 
 
 def _safe_int(val: object) -> int:

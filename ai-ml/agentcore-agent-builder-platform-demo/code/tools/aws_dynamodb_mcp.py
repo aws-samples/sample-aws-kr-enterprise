@@ -3,6 +3,7 @@ AWS DynamoDB MCP Lambda - table management, query, scan, data modeling
 AWS DynamoDB MCP 람다 - 테이블 관리, 쿼리, 스캔, 데이터 모델링
 """
 import json
+import math
 from cross_account import get_client, get_resource, get_role_arn
 
 
@@ -111,7 +112,7 @@ def lambda_handler(event, context):
             writes_per_sec = args.get("writes_per_sec", 50)
             item_size_kb = args.get("item_size_kb", 1)
             storage_gb = args.get("storage_gb", 10)
-            rcu = reads_per_sec * max(1, item_size_kb // 4)
+            rcu = reads_per_sec * max(1, math.ceil(item_size_kb / 4))
             wcu = writes_per_sec * max(1, item_size_kb)
             rcu_cost = rcu * 0.00013 * 730
             wcu_cost = wcu * 0.00065 * 730

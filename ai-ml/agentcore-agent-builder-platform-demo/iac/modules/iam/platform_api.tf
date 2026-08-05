@@ -131,11 +131,29 @@ resource "aws_iam_role_policy" "platform_api_task" {
         Effect   = "Allow"
         Action   = "iam:PassRole"
         Resource = aws_iam_role.agentcore_runtime.arn
+        # Least-privilege: only allow passing this role to AgentCore, so a
+        # compromised control plane cannot pass it to any other service (P12).
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "bedrock-agentcore.amazonaws.com"
+          }
+        }
       },
       {
-        Sid    = "CreateServiceLinkedRole"
+        # EVENTBRIDGE_SECRET contract: read the shared x-api-source secret from
+        # SSM Parameter Store (published by the compute module) to authenticate
+        # POST /api/events/alarm at runtime.
+        Sid    = "SSMEventBridgeSecret"
         Effect = "Allow"
-        Action = "iam:CreateServiceLinkedRole"
+        Action = [
+          "ssm:GetParameter"
+        ]
+        Resource = "arn:aws:ssm:${var.aws_region}:${var.account_id}:parameter/${var.prefix}/eventbridge/api-source-secret"
+      },
+      {
+        Sid      = "CreateServiceLinkedRole"
+        Effect   = "Allow"
+        Action   = "iam:CreateServiceLinkedRole"
         Resource = "arn:aws:iam::${var.account_id}:role/aws-service-role/*bedrock*/*"
       },
       {

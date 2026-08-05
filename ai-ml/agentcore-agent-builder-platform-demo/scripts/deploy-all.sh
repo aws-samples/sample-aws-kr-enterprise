@@ -37,10 +37,17 @@ echo ""
 echo "▶ Phase 1: Terraform Infrastructure"
 cd "$PROJECT_ROOT/iac/envs/dev"
 
+# Terraform builds its resource prefix as "${project}-${env}" (iac local.prefix),
+# and that prefix MUST equal PROJECT_PREFIX because Phase 4 addresses ECS
+# services as "${PROJECT_PREFIX}-platform-api". Split on the LAST dash only so
+# project+env recombine to exactly PROJECT_PREFIX for any number of segments
+# (e.g. aiops-v2-staging-dev -> project=aiops-v2-staging, env=dev).
+TF_PROJECT="${PROJECT_PREFIX%-*}"
+TF_ENV="${PROJECT_PREFIX##*-}"
 cat > terraform.tfvars <<TFVARS
 aws_region  = "$AWS_REGION"
-project     = "$(echo $PROJECT_PREFIX | cut -d'-' -f1-2)"
-env         = "$(echo $PROJECT_PREFIX | rev | cut -d'-' -f1 | rev)"
+project     = "$TF_PROJECT"
+env         = "$TF_ENV"
 vpc_cidr    = "10.1.0.0/16"
 domain_name = "$DOMAIN_NAME"
 TFVARS

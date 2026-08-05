@@ -30,6 +30,16 @@ output "reports_distribution_domain" {
   value = module.cdn.reports_distribution_domain
 }
 
+# REPORT_URL contract: consumed by deploy-agents.sh to inject the report agent's
+# CloudFront signing env (REPORT_CF_KEY_PAIR_ID / REPORT_CF_PRIVATE_KEY_SECRET).
+output "reports_cf_key_pair_id" {
+  value = module.cdn.reports_cf_key_pair_id
+}
+
+output "reports_cf_private_key_secret_name" {
+  value = module.cdn.reports_cf_private_key_secret_name
+}
+
 output "cognito_user_pool_id" {
   value = module.auth.user_pool_id
 }

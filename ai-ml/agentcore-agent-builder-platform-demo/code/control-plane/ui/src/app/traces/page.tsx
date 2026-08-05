@@ -12,6 +12,20 @@ import '@xyflow/react/dist/style.css';
 
 type ViewMode = 'waterfall' | 'graph' | 'json';
 
+/**
+ * CloudWatch Logs Insights returns @timestamp as a space-separated, non-ISO,
+ * UTC string like '2026-08-05 12:34:56.789' (no 'T', no 'Z'). Passing that
+ * straight to new Date() parses as LOCAL time in V8 and Invalid Date in Safari.
+ * Normalize to a real UTC timestamp before use.
+ */
+function parseCwlTimestamp(ts: string): Date {
+  if (!ts) return new Date(NaN);
+  // Already ISO-ish (has 'T'): trust the engine.
+  if (ts.includes('T')) return new Date(ts);
+  // 'yyyy-MM-dd HH:mm:ss(.SSS)' -> ISO UTC.
+  return new Date(ts.replace(' ', 'T') + 'Z');
+}
+
 export default function TracesPage() {
   const [sessions, setSessions] = useState<Record<string, TraceSession[]>>({});
   const [hours, setHours] = useState(1);
@@ -52,7 +66,7 @@ export default function TracesPage() {
       : Object.entries(sessions);
     return entries.flatMap(([service, traces]) =>
       traces.map((t) => ({ ...t, service }))
-    ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+    ).sort((a, b) => parseCwlTimestamp(b.startTime).getTime() - parseCwlTimestamp(a.startTime).getTime());
   }, [sessions, selectedAgent]);
 
   const sortedSpans = useMemo(() => {
@@ -136,17 +150,17 @@ export default function TracesPage() {
                   )}
                   <div className="flex items-center justify-between">
                     <span className="text-[var(--text-dim)]">
-                      {new Date(t.startTime).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      {parseCwlTimestamp(t.startTime).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Seoul' })}
                     </span>
                     {t.duration != null && (
-                      <span className="font-mono text-[var(--accent-cyan)]">
+                      <span className="font-mono" style={{ color: 'var(--accent-cyan, #06b6d4)' }}>
                         {(t.duration * 1000).toFixed(0)}ms
                       </span>
                     )}
                   </div>
                   {t.totalTokens != null && t.totalTokens > 0 && (
                     <div className="text-[10px] text-[var(--text-dim)] mt-0.5">
-                      tokens: <span className="font-mono text-[var(--accent-cyan)]">{t.totalTokens}</span>
+                      tokens: <span className="font-mono" style={{ color: 'var(--accent-cyan, #06b6d4)' }}>{t.totalTokens}</span>
                     </div>
                   )}
                   <div className="font-mono text-[10px] text-[var(--text-muted)] mt-0.5 truncate">
@@ -241,9 +255,11 @@ export default function TracesPage() {
 }
 
 function spanColor(name: string): string {
+  // --accent-* custom properties are not defined in the app cascade (only in
+  // standalone public/*.html), so provide fallback values inline.
   if (name.includes('invoke_agent')) return 'var(--purple)';
-  if (name.includes('chat')) return 'var(--accent-cyan)';
-  if (name.includes('execute_tool')) return 'var(--accent-orange)';
+  if (name.includes('chat')) return 'var(--accent-cyan, #06b6d4)';
+  if (name.includes('execute_tool')) return 'var(--accent-orange, #f59e0b)';
   if (name.includes('DynamoDB')) return '#3b48cc';
   if (name.includes('execute_event_loop')) return 'var(--success)';
   return 'var(--text-muted)';

@@ -21,10 +21,15 @@ MONITORING_GW="${MONITORING_GW_ID:-awsops-monitoring-gateway}"
 CONTAINER_GW="${CONTAINER_GW_ID:-awsops-container-gateway}"
 DATA_GW="${DATA_GW_ID:-awsops-data-gateway}"
 COST_GW="${COST_GW_ID:-awsops-cost-gateway}"
+NETWORK_GW="${NETWORK_GW_ID:-awsops-network-gateway}"
+IAC_GW="${IAC_GW_ID:-awsops-iac-gateway}"
+SECURITY_GW="${SECURITY_GW_ID:-awsops-security-gateway}"
+OPS_GW="${OPS_GW_ID:-awsops-ops-gateway}"
 
 echo "=== Seeding DynamoDB tables ==="
 echo "  Region: $REGION"
 echo "  Gateways: monitoring=$MONITORING_GW container=$CONTAINER_GW data=$DATA_GW cost=$COST_GW"
+echo "            network=$NETWORK_GW iac=$IAC_GW security=$SECURITY_GW ops=$OPS_GW"
 
 # --- Platform Policy ---
 echo "1. Platform Policy"
@@ -322,12 +327,19 @@ aws dynamodb put-item --table-name "$INC_TABLE" --region "$REGION" --item '{
 }'
 
 # --- Gateway Catalog ---
+# All 8 deployed gateways get a CONFIG row so the Builder can see and recommend
+# every gateway (previously only 4 were seeded). toolCount matches the number of
+# tools registered per gateway by register-gateway-targets.py.
 echo "12. Gateway Catalog"
 for GW_ENTRY in \
-  "${MONITORING_GW}:Monitoring Gateway:CloudWatch metrics/logs/alarms + CloudTrail events:observability:16" \
+  "${MONITORING_GW}:Monitoring Gateway:CloudWatch metrics/logs/alarms + CloudTrail events + datasource diagnostics:observability:24" \
   "${CONTAINER_GW}:Container Gateway:EKS + ECS cluster management:container:12" \
   "${DATA_GW}:Data Gateway:DynamoDB, RDS, ElastiCache/Valkey, MSK:data:24" \
-  "${COST_GW}:Cost Gateway:Cost Explorer, Pricing, Budgets, FinOps:cost:14"; do
+  "${COST_GW}:Cost Gateway:Cost Explorer, Pricing, Budgets, FinOps:cost:14" \
+  "${NETWORK_GW}:Network Gateway:VPC, TGW, VPN, ENI, Firewall, Flow Logs, Reachability:network:17" \
+  "${IAC_GW}:IaC Gateway:CloudFormation/CDK/Terraform validation, troubleshooting, docs:iac:12" \
+  "${SECURITY_GW}:Security Gateway:IAM users, roles, groups, policies, policy simulation:security:14" \
+  "${OPS_GW}:Ops Gateway:AWS Knowledge docs/regions + Core prompt understanding/CLI:ops:8"; do
   GW_ID="${GW_ENTRY%%:*}"
   REST="${GW_ENTRY#*:}"
   GW_NAME="${REST%%:*}"
@@ -347,5 +359,110 @@ for GW_ENTRY in \
   }"
   echo "  Gateway: $GW_NAME ($GW_ID)"
 done
+
+# --- Gateway Tool Catalog (SK=TOOL#) ---
+# Populates per-gateway tool rows so get_gateway_tools() is non-empty. This makes
+# the Tier1 deploy quality gate's toolFilter validation actually enforce (it was a
+# permanent no-op with an empty catalog) and lets the Builder LLM recommend
+# specific tools. Tool names mirror those registered by register-gateway-targets.py.
+echo "13. Gateway Tool Catalog"
+seed_gateway_tools() {
+  local gw_id="$1"; shift
+  local entry name desc
+  for entry in "$@"; do
+    name="${entry%%|*}"
+    desc="${entry#*|}"
+    aws dynamodb put-item --table-name "$TABLE" --region "$REGION" --item "{
+      \"PK\": {\"S\": \"GATEWAY#${gw_id}\"},
+      \"SK\": {\"S\": \"TOOL#${name}\"},
+      \"name\": {\"S\": \"${name}\"},
+      \"description\": {\"S\": \"${desc}\"}
+    }"
+  done
+  echo "  Tools seeded: $gw_id ($# entries)"
+}
+
+seed_gateway_tools "$MONITORING_GW" \
+  "get_metric_data|Get metric data" "get_metric_metadata|Metric metadata" \
+  "analyze_metric|Analyze trend" "get_recommended_metric_alarms|Alarm recommendations" \
+  "get_active_alarms|Active alarms" "get_alarm_history|Alarm history" \
+  "describe_log_groups|Log groups" "analyze_log_group|Search logs" \
+  "execute_log_insights_query|Log Insights query" "get_logs_insight_query_results|Query results" \
+  "cancel_logs_insight_query|Cancel query" "lookup_events|Look up CloudTrail events" \
+  "list_event_data_stores|Lake data stores" "lake_query|Lake SQL query" \
+  "get_query_status|Query status" "get_query_results|Query results" \
+  "validate_datasource_url|Validate datasource URL" "resolve_dns|Resolve hostname to IPs" \
+  "check_nlb_targets|Check NLB target health" "analyze_security_groups|Analyze SG chain" \
+  "trace_network_path|Trace network path" "test_http_connectivity|Test HTTP endpoint" \
+  "check_k8s_service_endpoints|Check K8s Service endpoints" "run_full_diagnosis|Full 6-step diagnostic"
+
+seed_gateway_tools "$CONTAINER_GW" \
+  "list_eks_clusters|List EKS clusters" "get_eks_vpc_config|EKS VPC config" \
+  "get_eks_insights|EKS insights" "get_cloudwatch_logs|EKS CloudWatch logs" \
+  "get_cloudwatch_metrics|EKS metrics" "get_eks_metrics_guidance|Container Insights guidance" \
+  "get_policies_for_role|IAM role policies" "search_eks_troubleshoot_guide|EKS troubleshooting" \
+  "generate_app_manifest|Generate K8s YAML" "ecs_resource_management|ECS resources" \
+  "ecs_troubleshooting_tool|ECS troubleshooting" "wait_for_service_ready|Check service readiness"
+
+seed_gateway_tools "$DATA_GW" \
+  "list_tables|List tables" "describe_table|Describe table" \
+  "query_table|Query/scan table" "get_item|Get item by key" \
+  "dynamodb_data_modeling|Data modeling guide" "compute_performances_and_costs|Cost estimation" \
+  "list_db_instances|List RDS instances" "list_db_clusters|List Aurora clusters" \
+  "describe_db_instance|Describe instance" "describe_db_cluster|Describe cluster" \
+  "execute_sql|SQL via Data API (SELECT only)" "list_snapshots|List snapshots" \
+  "list_cache_clusters|List cache clusters" "describe_cache_cluster|Describe cache cluster" \
+  "list_replication_groups|List replication groups" "describe_replication_group|Describe group" \
+  "list_serverless_caches|Serverless caches" "elasticache_best_practices|Best practices" \
+  "list_clusters|List Kafka clusters" "get_cluster_info|Cluster details" \
+  "get_configuration_info|MSK configurations" "get_bootstrap_brokers|Bootstrap brokers" \
+  "list_nodes|Broker nodes" "msk_best_practices|Best practices"
+
+seed_gateway_tools "$COST_GW" \
+  "get_today_date|Current date" "get_cost_and_usage|Cost and usage" \
+  "get_cost_and_usage_comparisons|Compare months" "get_cost_comparison_drivers|Cost drivers" \
+  "get_cost_forecast|Cost forecast" "get_dimension_values|Dimension values" \
+  "get_tag_values|Tag values" "get_pricing|Service pricing" "list_budgets|List budgets" \
+  "get_rightsizing_recommendations|Rightsizing recommendations" \
+  "get_savings_plans_recommendations|Savings Plans recommendations" \
+  "get_reserved_instance_recommendations|Reserved Instance recommendations" \
+  "get_cost_optimization_hub_recommendations|Cost Optimization Hub recommendations" \
+  "get_trusted_advisor_cost_checks|Trusted Advisor cost checks"
+
+seed_gateway_tools "$NETWORK_GW" \
+  "get_path_trace_methodology|Network troubleshooting methodology" "find_ip_address|Locate ENIs by IP" \
+  "get_eni_details|ENI details" "list_vpcs|List VPCs" \
+  "get_vpc_network_details|Full VPC config" "get_vpc_flow_logs|VPC flow logs" \
+  "describe_network|Describe SG/NACL/RT/Subnet/VPC" "list_transit_gateways|List TGWs" \
+  "get_tgw_details|TGW details" "get_tgw_routes|TGW routes" \
+  "get_all_tgw_routes|All TGW routes" "list_tgw_peerings|TGW peerings" \
+  "list_vpn_connections|VPN connections" "list_network_firewalls|Network Firewalls" \
+  "get_firewall_rules|Firewall rules" "analyze_reachability|Analyze network reachability" \
+  "query_flow_logs|Query flow logs"
+
+seed_gateway_tools "$IAC_GW" \
+  "validate_cloudformation_template|Validate CFn template" \
+  "check_cloudformation_template_compliance|Check compliance" \
+  "troubleshoot_cloudformation_deployment|Troubleshoot failures" \
+  "search_cdk_documentation|Search CDK docs" "search_cloudformation_documentation|Search CFn docs" \
+  "cdk_best_practices|CDK best practices" "read_iac_documentation_page|Fetch doc page" \
+  "SearchAwsProviderDocs|AWS provider docs" "SearchAwsccProviderDocs|AWSCC provider docs" \
+  "SearchSpecificAwsIaModules|AWS-IA modules" "SearchUserProvidedModule|Registry module" \
+  "terraform_best_practices|Terraform best practices"
+
+seed_gateway_tools "$SECURITY_GW" \
+  "list_users|List IAM users" "get_user|User details" \
+  "list_roles|List roles" "get_role_details|Role details" \
+  "list_groups|List groups" "get_group|Group details" \
+  "list_policies|List policies" "list_user_policies|User policies" \
+  "list_role_policies|Role policies" "get_user_policy|User inline policy" \
+  "get_role_policy|Role inline policy" "list_access_keys|Access keys" \
+  "simulate_principal_policy|Policy simulation" "get_account_security_summary|Account security summary"
+
+seed_gateway_tools "$OPS_GW" \
+  "search_documentation|Search AWS docs" "read_documentation|Read doc page" \
+  "recommend|Doc recommendations" "list_regions|List regions" \
+  "get_regional_availability|Regional availability" "prompt_understanding|Solution design guide" \
+  "call_aws|Execute AWS CLI" "suggest_aws_commands|Suggest commands"
 
 echo "=== Seed complete ==="

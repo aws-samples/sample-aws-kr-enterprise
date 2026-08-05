@@ -3,6 +3,7 @@ AWS FinOps Optimization MCP Lambda - Compute Optimizer, RI/SP Recommendations, C
 AWS FinOps 최적화 MCP 람다 - Compute Optimizer, RI/SP 추천, Cost Optimization Hub, Trusted Advisor
 """
 import json
+import os
 from cross_account import get_client, get_role_arn
 
 
@@ -37,7 +38,8 @@ def lambda_handler(event, context):
         # Compute Optimizer: EC2/RDS/ECS/Lambda 인스턴스 rightsizing 추천
         if t == "get_rightsizing_recommendations":
             resource_type = args.get("resource_type", "all")
-            co = get_client('compute-optimizer', 'ap-northeast-2', role_arn)
+            region = args.get("region") or os.environ.get("AWS_REGION", "ap-northeast-2")
+            co = get_client('compute-optimizer', region, role_arn)
             results = {}
 
             if resource_type in ("all", "ec2"):
@@ -228,24 +230,34 @@ def lambda_handler(event, context):
                     f["resourceTypes"] = [resource_type] if isinstance(resource_type, str) else resource_type
                 kwargs["filter"] = f
 
-            resp = coh.list_recommendations(**kwargs)
+            # Paginate all pages so totals reflect the whole account, not just page 1
+            # 전체 페이지를 순회하여 계정 전체 합계를 산출 (첫 페이지만 집계하지 않음)
             recs = []
-            for r in resp.get("items", []):
-                recs.append({
-                    "recommendationId": r.get("recommendationId", ""),
-                    "accountId": r.get("accountId", ""),
-                    "region": r.get("region", ""),
-                    "resourceId": r.get("resourceId", ""),
-                    "resourceArn": r.get("resourceArn", ""),
-                    "actionType": r.get("actionType", ""),
-                    "resourceType": r.get("resourceType", ""),
-                    "estimatedMonthlySavings": r.get("estimatedMonthlySavings", 0),
-                    "estimatedSavingsPercentage": r.get("estimatedSavingsPercentage", 0),
-                    "currentResourceSummary": r.get("currentResourceSummary", ""),
-                    "recommendedResourceSummary": r.get("recommendedResourceSummary", ""),
-                    "implementationEffort": r.get("implementationEffort", ""),
-                    "source": r.get("source", ""),
-                })
+            next_token = None
+            while True:
+                page_kwargs = dict(kwargs)
+                if next_token:
+                    page_kwargs["nextToken"] = next_token
+                resp = coh.list_recommendations(**page_kwargs)
+                for r in resp.get("items", []):
+                    recs.append({
+                        "recommendationId": r.get("recommendationId", ""),
+                        "accountId": r.get("accountId", ""),
+                        "region": r.get("region", ""),
+                        "resourceId": r.get("resourceId", ""),
+                        "resourceArn": r.get("resourceArn", ""),
+                        "actionType": r.get("actionType", ""),
+                        "resourceType": r.get("resourceType", ""),
+                        "estimatedMonthlySavings": r.get("estimatedMonthlySavings", 0),
+                        "estimatedSavingsPercentage": r.get("estimatedSavingsPercentage", 0),
+                        "currentResourceSummary": r.get("currentResourceSummary", ""),
+                        "recommendedResourceSummary": r.get("recommendedResourceSummary", ""),
+                        "implementationEffort": r.get("implementationEffort", ""),
+                        "source": r.get("source", ""),
+                    })
+                next_token = resp.get("nextToken")
+                if not next_token:
+                    break
             total_savings = sum(float(r.get("estimatedMonthlySavings", 0) or 0) for r in recs)
             return ok({
                 "totalRecommendations": len(recs),

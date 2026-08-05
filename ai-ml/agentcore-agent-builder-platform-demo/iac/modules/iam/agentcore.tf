@@ -34,10 +34,9 @@ resource "aws_iam_role_policy" "agentcore_runtime" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "DynamoDBReadWrite"
+        Sid    = "DynamoDBRead"
         Effect = "Allow"
         Action = [
-          "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:Query"
         ]
@@ -47,6 +46,32 @@ resource "aws_iam_role_policy" "agentcore_runtime" {
           var.incidents_table_arn,
           "${var.incidents_table_arn}/index/*"
         ]
+      },
+      {
+        # Least-privilege PutItem on the shared platform table. The runtime's
+        # only legitimate write to this table is a Side-Channel event whose
+        # partition key is SESSION#<id> (side_channel.py). Constraining
+        # dynamodb:LeadingKeys to SESSION#* prevents an agent (e.g. a
+        # prompt-injected dynamodb_put tool defaulting to DYNAMODB_TABLE) from
+        # overwriting the AGENT#*/CONFIG or SUPERVISOR registry rows and
+        # hijacking supervisor routing/prompts.
+        Sid      = "DynamoDBSideChannelWrite"
+        Effect   = "Allow"
+        Action   = "dynamodb:PutItem"
+        Resource = var.platform_table_arn
+        Condition = {
+          "ForAllValues:StringLike" = {
+            "dynamodb:LeadingKeys" = ["SESSION#*"]
+          }
+        }
+      },
+      {
+        # Incident records live in a separate table with their own key schema;
+        # create_incident (dynamodb_put) writes here.
+        Sid      = "DynamoDBIncidentWrite"
+        Effect   = "Allow"
+        Action   = "dynamodb:PutItem"
+        Resource = var.incidents_table_arn
       },
       {
         Sid    = "DynamoDBKMS"
@@ -62,6 +87,16 @@ resource "aws_iam_role_policy" "agentcore_runtime" {
         Effect   = "Allow"
         Action   = "s3:PutObject"
         Resource = "${var.reports_bucket_arn}/*"
+      },
+      {
+        # REPORT_URL contract: the report agent signs report URLs with the
+        # CloudFront private key stored by the cdn module in Secrets Manager
+        # (secret name "${prefix}-reports-cf-signing-key"; Secrets Manager
+        # appends a random 6-char suffix to the ARN, hence the trailing -*).
+        Sid      = "SecretsManagerReportsSigningKey"
+        Effect   = "Allow"
+        Action   = "secretsmanager:GetSecretValue"
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${var.account_id}:secret:${var.prefix}-reports-cf-signing-key-*"
       },
       {
         Sid    = "BedrockInvokeModel"

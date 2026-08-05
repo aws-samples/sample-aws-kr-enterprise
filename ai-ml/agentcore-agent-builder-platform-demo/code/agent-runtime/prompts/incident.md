@@ -21,4 +21,4 @@ Incident management — create, track, and analyze incidents.
 ## Rules
 1. Always check for similar past incidents before creating a new one.
 2. When creating incidents, include severity, affected service, and timeline.
-3. create_incident requires HITL approval — the platform will pause for user confirmation.
+3. create_incident writes the incident to the datastore immediately; there is no approval or pause step. Do not tell the user the platform will pause or wait for confirmation. Any feedback the user gives afterward is recorded but does not block or roll back the write, so confirm important details with the user before you call create_incident.

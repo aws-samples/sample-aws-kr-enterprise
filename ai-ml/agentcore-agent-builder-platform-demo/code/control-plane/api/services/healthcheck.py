@@ -8,6 +8,12 @@ logger = logging.getLogger(__name__)
 
 HEALTHCHECK_INTERVAL = 30
 
+# Runtime statuses that routing (events.py / chat.py / A2A handlers) treats as
+# invocable. If AgentCore reports the runtime gone/unhealthy while the RUNTIME
+# record still claims one of these, routing would keep dispatching to a dead
+# runtime, so we reconcile it below.
+ROUTABLE_STATUSES = ("active", "READY")
+
 
 async def reconcile_once(agentcore_client, db_service):
     """1회 reconciliation 실행."""
@@ -35,6 +41,28 @@ async def reconcile_once(agentcore_client, db_service):
             healthiness = runtime_map.get(agent_id, "NOT_DEPLOYED")
             db_service.update_healthiness(agent_id, healthiness, now)
             updated += 1
+
+            # Reconcile the RUNTIME item too — routing reads RUNTIME.status, not
+            # CONFIG.healthiness (M9). If AgentCore no longer reports the runtime
+            # as READY but the RUNTIME record still claims a routable status,
+            # demote it so events.py/chat.py/A2A stop dispatching to a dead
+            # runtime. The observed AgentCore status is written through verbatim
+            # (preserving the existing runtimeArn) so a recovered runtime is
+            # promoted back to READY on the next pass.
+            runtime = db_service.get_runtime_status(agent_id)
+            if not runtime:
+                continue
+            current_status = runtime.get("status", "")
+            if healthiness != current_status and (
+                current_status in ROUTABLE_STATUSES
+                or healthiness in ROUTABLE_STATUSES
+            ):
+                db_service.update_runtime_status(
+                    agent_id,
+                    healthiness,
+                    runtime.get("runtimeArn", ""),
+                    runtime.get("endpointArn", ""),
+                )
 
         logger.info(
             f"Healthcheck reconciled {updated} agents, {len(runtime_map)} runtimes found"

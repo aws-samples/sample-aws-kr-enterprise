@@ -74,6 +74,14 @@ resource "aws_ecs_task_definition" "platform_api" {
         { name = "REPORT_BUCKET", value = var.reports_bucket_name },
         { name = "REPORT_CF_DOMAIN", value = var.reports_cf_domain },
       ]
+      # EVENTBRIDGE_SECRET contract: the ECS agent resolves the SSM SecureString
+      # value at task start and injects it as the plain env var events.py reads
+      # (EVENTBRIDGE_SECRET). This keeps the secret out of the task definition
+      # JSON and matches the same value EventBridge presents in the x-api-source
+      # header. Requires ssm:GetParameters (+ kms:Decrypt) on the execution role.
+      secrets = [
+        { name = "EVENTBRIDGE_SECRET", valueFrom = aws_ssm_parameter.eventbridge_secret.arn },
+      ]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -116,6 +124,13 @@ resource "aws_ecs_service" "platform_api" {
     container_name   = "platform-api"
     container_port   = 8000
   }
+
+  # CreateService requires the target group to already be associated with a load
+  # balancer. Without this, a clean apply can create the service before the
+  # listener attaches the TGs to the ALB, failing with "target group ... does
+  # not have an associated load balancer." The API traffic flows via the
+  # listener rule, so depend on it (which transitively depends on the listener).
+  depends_on = [aws_lb_listener_rule.api]
 
   tags = merge(var.tags, {
     Name = "${var.prefix}-platform-api-svc"
@@ -195,6 +210,12 @@ resource "aws_ecs_service" "frontend" {
     container_name   = "frontend"
     container_port   = 3000
   }
+
+  # The frontend TG is the listener's default action, so it is attached to the
+  # ALB only once the listener exists. Depend on it to avoid the same
+  # "target group ... does not have an associated load balancer" first-apply
+  # failure described above.
+  depends_on = [aws_lb_listener.http]
 
   tags = merge(var.tags, {
     Name = "${var.prefix}-frontend-svc"

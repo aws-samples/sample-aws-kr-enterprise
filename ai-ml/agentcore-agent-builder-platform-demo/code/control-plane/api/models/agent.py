@@ -38,6 +38,16 @@ class InternalToolConfig(BaseModel):
 
 
 class TriggerConfig(BaseModel):
+    """Declares how an agent is intended to be invoked.
+
+    Honesty note: only ``type == "chat"`` is actually wired end-to-end. The
+    platform does NOT provision a per-agent scheduler or event rule, so
+    ``cron``/``pattern``/``source`` are advisory metadata only — nothing in the
+    control plane consumes them, and the single alarm endpoint
+    (/api/events/alarm) routes to incident-agent-001 regardless of these
+    fields. They are persisted for display/future use, not enforced.
+    """
+
     type: str
     source: str = ""
     pattern: dict = {}
@@ -49,7 +59,10 @@ class AgentConfig(BaseModel):
     agentId: str
     name: str
     contextBoundary: str
+    # MODEL contract: `model` is a bare inference-profile string (never an
+    # object); `maxTokens` is a top-level int consumed by the runtime.
     model: str = "global.anthropic.claude-sonnet-4-6"
+    maxTokens: int = 32768
     systemPrompt: str = ""
     gateways: list[GatewayBinding] = []
     delegations: list[Delegation] = []
@@ -85,6 +98,7 @@ class AgentCreateRequest(BaseModel):
     name: str
     contextBoundary: str
     model: str = "global.anthropic.claude-sonnet-4-6"
+    maxTokens: int = 32768
     systemPrompt: str = ""
     gateways: list[dict] = []
     delegations: list[dict] = []
@@ -100,6 +114,7 @@ class AgentUpdateRequest(BaseModel):
     name: Optional[str] = None
     contextBoundary: Optional[str] = None
     model: Optional[str] = None
+    maxTokens: Optional[int] = None
     systemPrompt: Optional[str] = None
     gateways: Optional[list[GatewayBinding]] = None
     delegations: Optional[list[Delegation]] = None
