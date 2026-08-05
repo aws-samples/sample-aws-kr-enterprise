@@ -89,29 +89,87 @@ resource "null_resource" "enable_transaction_search" {
     command = <<-EOT
       set -eu
       REGION="${var.aws_region}"
-      # Ensure the aws/spans span-storage log group exists. Transaction Search
-      # normally auto-creates it on the destination switch, but if it was
-      # deleted out-of-band the switch is a no-op and the Trace Viewer stays
-      # empty (K2). CreateLogGroup is idempotent-safe here: swallow the
-      # ResourceAlreadyExistsException so re-applies don't fail.
-      aws logs create-log-group --log-group-name "aws/spans" --region "$REGION" 2>/dev/null || true
-      aws logs put-retention-policy --log-group-name "aws/spans" \
-        --retention-in-days 30 --region "$REGION" 2>/dev/null || true
 
-      # Idempotent: only switch the destination if it isn't already CloudWatchLogs
-      # (a re-run otherwise raises InvalidRequestException "already set").
+      # -------------------------------------------------------------------
+      # aws/spans span-storage log group (K2 — verified against a live account)
+      #
+      # The `aws/spans` group is created ONLY by the Transaction Search service
+      # itself, at the moment the X-Ray trace-segment destination transitions
+      # INTO CloudWatchLogs. It cannot be created any other way:
+      #   aws logs create-log-group --log-group-name aws/spans
+      #     -> InvalidParameterException: "Log groups starting with AWS/ are
+      #        reserved for AWS."
+      # So the previous approach (create-log-group with the error swallowed by
+      # `|| true`) silently did nothing and the Trace Viewer stayed empty while
+      # Transaction Search read ACTIVE.
+      #
+      # Fix: if the group is missing we must TRIGGER a fresh destination
+      # transition. When the destination is already CloudWatchLogs, setting it
+      # again is a no-op (and errors), so we first flip to XRay and then back to
+      # CloudWatchLogs. Each transition passes through PENDING and must reach
+      # ACTIVE before the next call is accepted (otherwise: InvalidRequestException
+      # "Updates are not allowed while the current status is PENDING").
+      # -------------------------------------------------------------------
+
+      wait_active() {
+        # Poll until the destination status is ACTIVE (up to ~5 min).
+        for _ in $(seq 1 30); do
+          st=$(aws xray get-trace-segment-destination --region "$REGION" \
+                 --query 'Status' --output text 2>/dev/null || echo "")
+          [ "$st" = "ACTIVE" ] && return 0
+          sleep 10
+        done
+        echo "WARN: trace-segment destination did not reach ACTIVE in time" >&2
+        return 1
+      }
+
+      spans_group_exists() {
+        found=$(aws logs describe-log-groups --log-group-name-prefix "aws/spans" \
+                  --region "$REGION" \
+                  --query "logGroups[?logGroupName=='aws/spans'] | length(@)" \
+                  --output text 2>/dev/null || echo "0")
+        [ "$found" = "1" ]
+      }
+
       CURRENT=$(aws xray get-trace-segment-destination --region "$REGION" \
         --query 'Destination' --output text 2>/dev/null || echo "")
-      if [ "$CURRENT" != "CloudWatchLogs" ]; then
+
+      if spans_group_exists; then
+        # Group present — just make sure the destination is CloudWatchLogs.
+        if [ "$CURRENT" != "CloudWatchLogs" ]; then
+          wait_active || true
+          aws xray update-trace-segment-destination \
+            --destination CloudWatchLogs --region "$REGION"
+          wait_active || true
+        else
+          echo "Transaction Search already enabled; aws/spans present."
+        fi
+      else
+        # Group missing — force the service to auto-create it via a full
+        # transition into CloudWatchLogs.
+        echo "aws/spans missing — cycling trace-segment destination to recreate it."
+        wait_active || true
+        if [ "$CURRENT" = "CloudWatchLogs" ]; then
+          # Already CloudWatchLogs: flip to XRay first so the switch back is a
+          # real INTO-CloudWatchLogs transition that recreates the group.
+          aws xray update-trace-segment-destination --destination XRay --region "$REGION"
+          wait_active || true
+        fi
         aws xray update-trace-segment-destination \
           --destination CloudWatchLogs --region "$REGION"
-      else
-        echo "Transaction Search already enabled (destination=CloudWatchLogs)"
+        wait_active || true
       fi
+
+      # 100% sampling so the demo's Trace Viewer shows every request.
       aws xray update-indexing-rule \
         --name Default \
         --rule '{"Probabilistic":{"DesiredSamplingPercentage":100}}' \
         --region "$REGION"
+
+      # Best-effort retention on the service-managed group (ignore if the
+      # service has not finished materializing it yet — a later apply heals it).
+      aws logs put-retention-policy --log-group-name "aws/spans" \
+        --retention-in-days 30 --region "$REGION" 2>/dev/null || true
     EOT
   }
 }
