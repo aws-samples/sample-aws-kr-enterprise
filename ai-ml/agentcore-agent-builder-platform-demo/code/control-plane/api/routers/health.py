@@ -32,8 +32,15 @@ async def health(request: Request):
         )
 
     try:
-        # Cheap, bounded connectivity probe against the real table.
-        await asyncio.to_thread(lambda: db.table.table_status)
+        # Cheap, bounded connectivity probe against the real table. Use a
+        # get_item on a sentinel key rather than table_status/DescribeTable:
+        # the task role is scoped to item-level actions (GetItem/Query/...),
+        # NOT dynamodb:DescribeTable, so probing table_status would raise
+        # AccessDenied and wrongly fail the health check. A missing item still
+        # returns 200 from DynamoDB, which is exactly the "can I serve?" signal.
+        await asyncio.to_thread(
+            lambda: db.table.get_item(Key={"PK": "_healthcheck", "SK": "_probe"})
+        )
     except Exception as e:
         return JSONResponse(
             status_code=503,

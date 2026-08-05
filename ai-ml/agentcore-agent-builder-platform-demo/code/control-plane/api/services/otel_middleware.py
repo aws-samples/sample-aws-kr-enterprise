@@ -32,14 +32,26 @@ _tracer = trace.get_tracer("platform-api")
 
 def setup_tracing(service_name: str = "platform-api") -> bool:
     """Install an OTEL SDK TracerProvider so middleware spans are recorded and
-    exported. Returns True if a provider was installed, False if the OTEL SDK
-    is not available (in which case OtelMiddleware degrades to a cheap
-    pass-through and logs a clear diagnostic).
+    exported. Returns True if a provider was installed, False otherwise (in
+    which case OtelMiddleware degrades to a cheap pass-through).
 
-    Exporter target follows the standard OTEL_EXPORTER_OTLP_ENDPOINT env var
-    (set by the ADOT collector / sidecar); if unset the OTLP exporter uses its
-    default endpoint.
+    An OTLP exporter is only wired up when OTEL_EXPORTER_OTLP_ENDPOINT is set
+    (by an ADOT collector / sidecar). Without a collector, a BatchSpanProcessor
+    pointed at the default localhost:4318 endpoint retries endlessly and floods
+    the logs with connection-refused errors and delays shutdown — so we skip
+    installing the provider entirely when no endpoint is configured.
     """
+    import os
+
+    endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+    if not endpoint:
+        logger.info(
+            "OTEL_EXPORTER_OTLP_ENDPOINT not set — no OTLP collector; skipping "
+            "TracerProvider install (OtelMiddleware runs as a pass-through). "
+            "Set the endpoint (ADOT sidecar) to enable control-plane tracing."
+        )
+        return False
+
     try:
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
@@ -60,7 +72,9 @@ def setup_tracing(service_name: str = "platform-api") -> bool:
     )
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     trace.set_tracer_provider(provider)
-    logger.info("OTEL TracerProvider installed for %s", service_name)
+    logger.info(
+        "OTEL TracerProvider installed for %s (endpoint=%s)", service_name, endpoint
+    )
     return True
 
 
