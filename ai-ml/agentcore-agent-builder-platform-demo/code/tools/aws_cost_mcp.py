@@ -65,17 +65,26 @@ def lambda_handler(event, context):
             if args.get("filter"):
                 kwargs["Filter"] = args["filter"]
 
-            # Query Cost Explorer for usage data / Cost Explorer에서 사용량 데이터 조회
-            resp = ce.get_cost_and_usage(**kwargs)
+            # Query Cost Explorer for usage data, following NextPageToken so
+            # total and breakdown cover the full period (not just page 1)
+            # Cost Explorer 사용량 조회 — NextPageToken을 끝까지 순회해 전체 기간 합계/내역 확보
             results = []
-            for period in resp.get("ResultsByTime", []):
-                for group in period.get("Groups", []):
-                    results.append({
-                        "period": "{} ~ {}".format(period["TimePeriod"]["Start"], period["TimePeriod"]["End"]),
-                        "key": group["Keys"][0],
-                        "amount": float(group["Metrics"][metric]["Amount"]),
-                        "unit": group["Metrics"][metric].get("Unit", "USD"),
-                    })
+            next_token = None
+            while True:
+                if next_token:
+                    kwargs["NextPageToken"] = next_token
+                resp = ce.get_cost_and_usage(**kwargs)
+                for period in resp.get("ResultsByTime", []):
+                    for group in period.get("Groups", []):
+                        results.append({
+                            "period": "{} ~ {}".format(period["TimePeriod"]["Start"], period["TimePeriod"]["End"]),
+                            "key": group["Keys"][0],
+                            "amount": float(group["Metrics"][metric]["Amount"]),
+                            "unit": group["Metrics"][metric].get("Unit", "USD"),
+                        })
+                next_token = resp.get("NextPageToken")
+                if not next_token:
+                    break
             results.sort(key=lambda x: x["amount"], reverse=True)
             total = sum(r["amount"] for r in results)
             return ok({"period": "{} ~ {}".format(start, end), "granularity": granularity,
@@ -85,21 +94,35 @@ def lambda_handler(event, context):
         elif t == "get_cost_and_usage_comparisons":
             ce = get_client('ce', 'us-east-1', role_arn)
             now = datetime.utcnow()
-            # Current month vs last month
-            cur_start = now.strftime("%Y-%m-01")
-            cur_end = now.strftime("%Y-%m-%d")
-            prev_start = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m-01")
-            prev_end = now.replace(day=1).strftime("%Y-%m-01")
+            # Current is month-to-date; align previous to the SAME elapsed-days window
+            # so we compare like periods (avoids a false "costs collapsed" reading early in the month).
+            # 현재는 월초~오늘(MTD). 이전 달도 동일 경과일수 구간으로 맞춰 공정 비교(월초 착시 방지).
+            cur_start_dt = now.replace(day=1)
+            cur_end_dt = now  # CE End is exclusive → covers day 1..yesterday
+            days_elapsed = max(1, (cur_end_dt - cur_start_dt).days)
+            prev_start_dt = (cur_start_dt - timedelta(days=1)).replace(day=1)
+            prev_end_dt = prev_start_dt + timedelta(days=days_elapsed)
+            cur_start = cur_start_dt.strftime("%Y-%m-%d")
+            cur_end = cur_end_dt.strftime("%Y-%m-%d")
+            prev_start = prev_start_dt.strftime("%Y-%m-%d")
+            prev_end = prev_end_dt.strftime("%Y-%m-%d")
 
             def get_costs(start, end):
-                resp = ce.get_cost_and_usage(
-                    TimePeriod={"Start": start, "End": end}, Granularity="MONTHLY",
-                    Metrics=["UnblendedCost"], GroupBy=[{"Type": "DIMENSION", "Key": "SERVICE"}])
                 costs = {}
-                for p in resp.get("ResultsByTime", []):
-                    for g in p.get("Groups", []):
-                        svc = g["Keys"][0]
-                        costs[svc] = costs.get(svc, 0) + float(g["Metrics"]["UnblendedCost"]["Amount"])
+                next_token = None
+                while True:
+                    kw = {"TimePeriod": {"Start": start, "End": end}, "Granularity": "MONTHLY",
+                        "Metrics": ["UnblendedCost"], "GroupBy": [{"Type": "DIMENSION", "Key": "SERVICE"}]}
+                    if next_token:
+                        kw["NextPageToken"] = next_token
+                    resp = ce.get_cost_and_usage(**kw)
+                    for p in resp.get("ResultsByTime", []):
+                        for g in p.get("Groups", []):
+                            svc = g["Keys"][0]
+                            costs[svc] = costs.get(svc, 0) + float(g["Metrics"]["UnblendedCost"]["Amount"])
+                    next_token = resp.get("NextPageToken")
+                    if not next_token:
+                        break
                 return costs
 
             prev_costs = get_costs(prev_start, prev_end)
@@ -118,6 +141,7 @@ def lambda_handler(event, context):
             comparison.sort(key=lambda x: abs(x["difference"]), reverse=True)
             return ok({"previousPeriod": "{} ~ {}".format(prev_start, prev_end),
                 "currentPeriod": "{} ~ {}".format(cur_start, cur_end),
+                "note": "Month-to-date ({} days) vs the same first-{} days of the previous month.".format(days_elapsed, days_elapsed),
                 "previousTotal": round(sum(prev_costs.values()), 2),
                 "currentTotal": round(sum(cur_costs.values()), 2),
                 "comparison": comparison[:20]})
@@ -126,21 +150,35 @@ def lambda_handler(event, context):
         elif t == "get_cost_comparison_drivers":
             ce = get_client('ce', 'us-east-1', role_arn)
             now = datetime.utcnow()
-            cur_start = now.strftime("%Y-%m-01")
-            cur_end = now.strftime("%Y-%m-%d")
-            prev_start = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m-01")
-            prev_end = now.replace(day=1).strftime("%Y-%m-01")
+            # Align previous to the same month-to-date window as current (partial vs partial).
+            # 이전 달도 현재와 동일한 경과일수(MTD) 구간으로 맞춰 비교.
+            cur_start_dt = now.replace(day=1)
+            cur_end_dt = now
+            days_elapsed = max(1, (cur_end_dt - cur_start_dt).days)
+            prev_start_dt = (cur_start_dt - timedelta(days=1)).replace(day=1)
+            prev_end_dt = prev_start_dt + timedelta(days=days_elapsed)
+            cur_start = cur_start_dt.strftime("%Y-%m-%d")
+            cur_end = cur_end_dt.strftime("%Y-%m-%d")
+            prev_start = prev_start_dt.strftime("%Y-%m-%d")
+            prev_end = prev_end_dt.strftime("%Y-%m-%d")
 
             def get_detailed(start, end):
-                resp = ce.get_cost_and_usage(
-                    TimePeriod={"Start": start, "End": end}, Granularity="MONTHLY",
-                    Metrics=["UnblendedCost"],
-                    GroupBy=[{"Type": "DIMENSION", "Key": "SERVICE"}, {"Type": "DIMENSION", "Key": "USAGE_TYPE"}])
                 costs = {}
-                for p in resp.get("ResultsByTime", []):
-                    for g in p.get("Groups", []):
-                        key = " / ".join(g["Keys"])
-                        costs[key] = costs.get(key, 0) + float(g["Metrics"]["UnblendedCost"]["Amount"])
+                next_token = None
+                while True:
+                    kw = {"TimePeriod": {"Start": start, "End": end}, "Granularity": "MONTHLY",
+                        "Metrics": ["UnblendedCost"],
+                        "GroupBy": [{"Type": "DIMENSION", "Key": "SERVICE"}, {"Type": "DIMENSION", "Key": "USAGE_TYPE"}]}
+                    if next_token:
+                        kw["NextPageToken"] = next_token
+                    resp = ce.get_cost_and_usage(**kw)
+                    for p in resp.get("ResultsByTime", []):
+                        for g in p.get("Groups", []):
+                            key = " / ".join(g["Keys"])
+                            costs[key] = costs.get(key, 0) + float(g["Metrics"]["UnblendedCost"]["Amount"])
+                    next_token = resp.get("NextPageToken")
+                    if not next_token:
+                        break
                 return costs
 
             prev = get_detailed(prev_start, prev_end)
@@ -154,6 +192,7 @@ def lambda_handler(event, context):
                         "current": round(cur.get(k, 0), 2), "impact": round(diff, 2)})
             drivers.sort(key=lambda x: abs(x["impact"]), reverse=True)
             return ok({"topDrivers": drivers[:10],
+                "note": "Month-to-date ({} days) vs the same first-{} days of the previous month.".format(days_elapsed, days_elapsed),
                 "period": "{} ~ {} vs {} ~ {}".format(prev_start, prev_end, cur_start, cur_end)})
 
         # Forecast future costs / 향후 비용 예측

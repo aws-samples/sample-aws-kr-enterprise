@@ -5,9 +5,11 @@ import { Handle, Position } from '@xyflow/react';
 import type { OtelSpan } from '@/lib/types';
 
 function spanColor(name: string): string {
+  // --accent-* custom properties are not defined in the app cascade (only in
+  // standalone public/*.html), so provide fallback values inline.
   if (name.includes('invoke_agent')) return 'var(--purple)';
-  if (name.includes('chat')) return 'var(--accent-cyan)';
-  if (name.includes('execute_tool')) return 'var(--accent-orange)';
+  if (name.includes('chat')) return 'var(--accent-cyan, #06b6d4)';
+  if (name.includes('execute_tool')) return 'var(--accent-orange, #f59e0b)';
   if (name.includes('DynamoDB')) return '#3b48cc';
   if (name.includes('execute_event_loop')) return 'var(--success)';
   return 'var(--text-muted)';
@@ -50,7 +52,7 @@ function AgentNode({ data }: AgentNodeProps) {
           {label}
         </span>
         {durationMs && (
-          <span className="font-mono text-[var(--accent-cyan)] ml-auto">{durationMs}ms</span>
+          <span className="font-mono ml-auto" style={{ color: 'var(--accent-cyan, #06b6d4)' }}>{durationMs}ms</span>
         )}
       </div>
 
@@ -63,10 +65,10 @@ function AgentNode({ data }: AgentNodeProps) {
           <div className="truncate">model: <span className="text-[var(--text-muted)]">{span.model.split('.').pop()}</span></div>
         )}
         {span.inputTokens != null && span.outputTokens != null && (
-          <div>tokens: <span className="font-mono text-[var(--accent-cyan)]">{span.inputTokens}&rarr;{span.outputTokens}</span></div>
+          <div>tokens: <span className="font-mono" style={{ color: 'var(--accent-cyan, #06b6d4)' }}>{span.inputTokens}&rarr;{span.outputTokens}</span></div>
         )}
         {span.toolName && span.toolStatus && (
-          <div>status: <span className={span.toolStatus === 'error' ? 'text-[var(--accent-red)]' : 'text-[var(--success)]'}>{span.toolStatus}</span></div>
+          <div>status: <span style={{ color: span.toolStatus === 'error' ? 'var(--accent-red, #ef4444)' : 'var(--success)' }}>{span.toolStatus}</span></div>
         )}
         {span.ttft != null && (
           <div>TTFT: <span className="font-mono">{span.ttft}ms</span></div>

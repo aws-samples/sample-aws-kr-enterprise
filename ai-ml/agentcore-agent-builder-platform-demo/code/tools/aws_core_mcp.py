@@ -4,7 +4,33 @@ AWS Core MCP Lambda - prompt_understanding + call_aws + suggest_aws_commands
 """
 import json
 import shlex
-from cross_account import get_client, get_role_arn
+from cross_account import get_client, get_role_arn, default_region
+
+
+def _normalize_param_names(client, action, kwargs):
+    """Map CLI-style param names (snake_case from kebab flags) to the exact
+    botocore input-shape members (PascalCase/camelCase).
+
+    botocore rejects unknown parameters, so `--instance-ids` -> `instance_ids`
+    must become `InstanceIds`. We resolve the real member names from the
+    operation's input shape and match case/separator-insensitively.
+    CLI 파라미터 이름을 botocore 입력 셰이프 멤버명으로 매핑."""
+    try:
+        op_name = client.meta.method_to_api_mapping.get(action)
+        input_shape = client.meta.service_model.operation_model(op_name).input_shape
+        members = list(input_shape.members) if input_shape is not None else []
+    except Exception:
+        return kwargs
+
+    if not members:
+        return kwargs
+
+    lookup = {m.replace("_", "").lower(): m for m in members}
+    normalized = {}
+    for key, val in kwargs.items():
+        member = lookup.get(key.replace("_", "").lower())
+        normalized[member if member else key] = val
+    return normalized
 
 
 PROMPT_UNDERSTANDING = """# AWS Solution Design Guide
@@ -75,12 +101,13 @@ def call_aws(cli_command, max_results=None, role_arn=None):
         else:
             i += 1
 
-    if max_results and "MaxResults" not in kwargs and "max_results" not in kwargs:
-        kwargs["MaxResults"] = max_results
-
     try:
         # Create boto3 client and invoke the API method / boto3 클라이언트 생성 후 API 메서드 호출
-        client = get_client(service, 'ap-northeast-2', role_arn)
+        client = get_client(service, default_region(), role_arn)
+        # Convert CLI param names to the exact botocore shape members / CLI 파라미터명을 botocore 셰이프 멤버로 변환
+        kwargs = _normalize_param_names(client, action, kwargs)
+        if max_results and "MaxResults" not in kwargs and "max_results" not in kwargs:
+            kwargs["MaxResults"] = max_results
         method = getattr(client, action)
         response = method(**kwargs)
         response.pop("ResponseMetadata", None)

@@ -11,6 +11,7 @@ URL 검증, DNS 해석, NLB 타겟, SG 분석, 네트워크 경로 추적,
 HTTP 연결, K8s 서비스 엔드포인트, 전체 오케스트레이션 진단.
 """
 import json
+import os
 import re
 import socket
 import time
@@ -18,7 +19,13 @@ import ipaddress
 from urllib.parse import urlparse
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
-from cross_account import get_client, get_role_arn
+from cross_account import get_client, get_role_arn, default_region
+
+# Valid K8s namespace / service names are RFC 1035 labels — lowercase
+# alphanumerics and hyphens only. Reject anything else (e.g. '..', '/') so
+# raw values cannot path-inject into the K8s API URL.
+# K8s 네임스페이스/서비스 이름 검증 (경로 주입 차단).
+_K8S_NAME_RE = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
 
 # AWS ELB DNS names look like "<name>-<hash>.elb.<region>.amazonaws.com" (or the
 # legacy "<name>-<hash>.<region>.elb.amazonaws.com"). Match on the full parsed
@@ -46,7 +53,7 @@ def lambda_handler(event, context):
     args = params.get("arguments", params) if "arguments" in params else params
     target_account_id = args.pop('target_account_id', None)
     role_arn = get_role_arn(target_account_id) if target_account_id else None
-    region = args.get("region", "ap-northeast-2")
+    region = args.get("region") or default_region()
 
     if not t:
         if "url" in args and "datasource_type" in args:
@@ -575,15 +582,24 @@ def _trace_network_path(args, region, role_arn):
         )["TransitGatewayRouteTables"]
         tgw_has_route = False
         for trt in tgw_rts:
+            # Narrow the search to the destination via longest-prefix-match so the
+            # matching route is returned directly, instead of scanning a truncated
+            # first page (~100 routes) that may omit it -> false 'disconnected'.
+            # 대상 IP로 검색을 좁혀(최장 접두사 매칭) 잘린 첫 페이지 누락으로 인한 오탐 방지.
+            filters = [{"Name": "state", "Values": ["active"]}]
+            if dst_ip:
+                filters.append({"Name": "route-search.longest-prefix-match", "Values": [dst_ip]})
             routes = ec2.search_transit_gateway_routes(
                 TransitGatewayRouteTableId=trt["TransitGatewayRouteTableId"],
-                Filters=[{"Name": "state", "Values": ["active"]}]
+                Filters=filters
             )["Routes"]
             for r in routes:
                 if r.get("DestinationCidrBlock") and dst_ip:
                     if _cidr_contains(r["DestinationCidrBlock"], dst_ip):
                         tgw_has_route = True
                         break
+            if tgw_has_route:
+                break
         route_analysis["tgw_rt_has_route"] = tgw_has_route
     except Exception as e:
         route_analysis["tgw_error"] = str(e)
@@ -640,7 +656,7 @@ def _test_http_connectivity(args):
             "status_code": resp.getcode(),
             "latency_ms": latency,
             "response_body": body[:500],
-            "headers": dict(resp.headers.items())[:10] if resp.headers else {},
+            "headers": dict(list(resp.headers.items())[:10]) if resp.headers else {},
             "error": None,
         })
     except HTTPError as e:
@@ -683,8 +699,17 @@ def _check_k8s_service_endpoints(args, region, role_arn):
     if not cluster_name or not service_name:
         return err("cluster_name and service_name are required")
 
+    # Reject values that are not valid RFC 1035 K8s names so they cannot
+    # path-inject (e.g. '../secrets/...') into the K8s API URL below.
+    # 경로 주입 방지를 위해 유효하지 않은 K8s 이름 거부.
+    if not _K8S_NAME_RE.match(namespace):
+        return err("Invalid namespace")
+    if not _K8S_NAME_RE.match(service_name):
+        return err("Invalid service_name")
+
     eks = get_client('eks', region, role_arn)
 
+    ca_file_name = None
     try:
         # Get cluster endpoint and CA / 클러스터 엔드포인트 및 CA 조회
         cluster = eks.describe_cluster(name=cluster_name)["cluster"]
@@ -723,10 +748,11 @@ def _check_k8s_service_endpoints(args, region, role_arn):
 
         ca_cert_data = base64.b64decode(ca_data)
         ca_file = tempfile.NamedTemporaryFile(delete=False, suffix='.crt')
+        ca_file_name = ca_file.name
         ca_file.write(ca_cert_data)
         ca_file.close()
 
-        ctx = ssl.create_default_context(cafile=ca_file.name)
+        ctx = ssl.create_default_context(cafile=ca_file_name)
 
         # Get Service / 서비스 조회
         svc_url = f"{endpoint}/api/v1/namespaces/{namespace}/services/{service_name}"
@@ -767,10 +793,6 @@ def _check_k8s_service_endpoints(args, region, role_arn):
                         "target_ref": addr.get("targetRef", {}).get("name", ""),
                     })
 
-        # Cleanup temp file / 임시 파일 정리
-        import os
-        os.unlink(ca_file.name)
-
         return ok({
             "cluster_name": cluster_name,
             "service": {
@@ -792,6 +814,13 @@ def _check_k8s_service_endpoints(args, region, role_arn):
             "service_name": service_name,
             "error": str(e),
         })
+    finally:
+        # Cleanup temp CA file on every path (success or exception) / 성공·예외 모두에서 임시 CA 파일 정리
+        if ca_file_name:
+            try:
+                os.unlink(ca_file_name)
+            except OSError:
+                pass
 
 
 def _run_full_diagnosis(args, region, role_arn):

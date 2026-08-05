@@ -1,7 +1,21 @@
-strands-agents>=0.1.0
-strands-agents-tools>=0.1.0
-boto3>=1.35.0
-python-ulid>=2.0.0
-fastapi>=0.110.0
-uvicorn>=0.27.0
-aws-opentelemetry-distro>=0.10.0
+# Pinned with both lower AND upper bounds so a rebuild cannot silently pull a
+# newer, breaking release (L12). Bump the ceilings deliberately after testing.
+# For byte-for-byte reproducibility, generate a lockfile from this set:
+#   pip install -r requirements.txt && pip freeze > requirements.lock.txt
+# and build from the lockfile in CI.
+# The code uses the stable 1.x API (strands.hooks.registry/events,
+# strands.tools.mcp, strands.models.bedrock). The prior working images built
+# with an open lower bound resolved to strands 1.x; an earlier ceiling of
+# <0.2.0 wrongly pulled 0.1.9 (no strands.hooks) and crashed the runtime on
+# boot. Pin to the validated majors: strands-agents 1.x, tools 0.8.x.
+strands-agents>=1.0.0,<2.0.0
+strands-agents-tools>=0.8.0,<0.9.0
+boto3>=1.35.0,<2.0.0
+python-ulid>=2.0.0,<3.0.0
+fastapi>=0.110.0,<0.116.0
+uvicorn>=0.27.0,<0.35.0
+aws-opentelemetry-distro>=0.10.0,<0.13.0
+httpx>=0.27.0,<0.29.0
+# Report agent signs CloudFront URLs (report_tools/s3_uploader.py) — RSA PEM load
+# + PKCS1v15/SHA1 signing via botocore.signers.CloudFrontSigner needs cryptography.
+cryptography>=42.0.0,<48.0.0

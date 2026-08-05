@@ -1,6 +1,35 @@
+terraform {
+  required_providers {
+    random = {
+      source = "hashicorp/random"
+    }
+  }
+}
+
 ################################################################################
 # EventBridge — CloudWatch Alarm → Platform API
 ################################################################################
+
+# EVENTBRIDGE_SECRET contract: the /api/events/alarm endpoint is gated by the
+# x-api-source header value. It must be a deploy-time generated secret, never a
+# world-known constant. We generate a strong random value, inject it into the
+# EventBridge connection's api_key header, and publish it to SSM Parameter Store
+# (SecureString) at a shared path. The platform API reads the SAME value from
+# that path at runtime and does a constant-time compare (see routers/events.py,
+# env EVENT_API_SOURCE / EVENT_API_SOURCE_SSM_PARAM). Both sides reference this
+# single source.
+resource "random_password" "eventbridge_secret" {
+  length  = 48
+  special = false
+}
+
+resource "aws_ssm_parameter" "eventbridge_secret" {
+  name        = "/${var.prefix}/eventbridge/api-source-secret"
+  description = "Shared secret gating POST /api/events/alarm (x-api-source header)"
+  type        = "SecureString"
+  value       = random_password.eventbridge_secret.result
+  tags        = var.tags
+}
 
 resource "aws_cloudwatch_event_connection" "platform" {
   name               = "${var.prefix}-platform-conn"
@@ -9,7 +38,7 @@ resource "aws_cloudwatch_event_connection" "platform" {
   auth_parameters {
     api_key {
       key   = "x-api-source"
-      value = "eventbridge"
+      value = random_password.eventbridge_secret.result
     }
   }
 }
@@ -27,6 +56,12 @@ resource "aws_cloudwatch_event_rule" "alarm_to_agent" {
   name        = "${var.prefix}-alarm-to-agent"
   description = "CloudWatch Alarm ALARM state -> Platform API -> Incident Agent RCA"
 
+  # Exclude the platform's own operational alarms so plumbing/failure alarms do
+  # not self-trigger an incident RCA. In particular alarm_delivery_failed (the
+  # AWS/Events FailedInvocations alarm below) would otherwise create a feedback
+  # loop: a failed delivery raises the alarm, whose ALARM state change is itself
+  # delivered to /api/events/alarm, opening a spurious incident. anything-but on
+  # the alarm name breaks that loop without over-restricting legitimate alarms.
   event_pattern = jsonencode({
     source      = ["aws.cloudwatch"]
     detail-type = ["CloudWatch Alarm State Change"]
@@ -34,6 +69,12 @@ resource "aws_cloudwatch_event_rule" "alarm_to_agent" {
       state = {
         value = ["ALARM"]
       }
+      # Literal name (not the resource attribute) to avoid a dependency cycle:
+      # alarm_delivery_failed already references this rule's name in its
+      # RuleName dimension.
+      alarmName = [{
+        "anything-but" = ["${var.prefix}-alarm-delivery-failed"]
+      }]
     }
   })
 

@@ -19,7 +19,11 @@ const BUILDER_STEPS = [
 
 const MODEL_OPTIONS = [
   { label: 'Claude Sonnet 4.6', value: 'global.anthropic.claude-sonnet-4-6' },
-  { label: 'Claude Opus 4.6', value: 'global.anthropic.claude-opus-4-6-v1' },
+  { label: 'Claude Sonnet 5', value: 'global.anthropic.claude-sonnet-5' },
+  { label: 'Claude Opus 4.8', value: 'global.anthropic.claude-opus-4-8' },
+  { label: 'Claude Opus 4.7', value: 'global.anthropic.claude-opus-4-7' },
+  { label: 'Claude Opus 5', value: 'global.anthropic.claude-opus-5' },
+  { label: 'Claude Fable 5', value: 'global.anthropic.claude-fable-5' },
   { label: 'Claude Haiku 4.5', value: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' },
 ];
 
@@ -55,7 +59,16 @@ export default function BuilderPage() {
       content: message,
       timestamp: new Date().toISOString(),
     };
-    const updatedMessages = [...messages, userMessage];
+    // Drop trailing system (error) messages from a prior failed attempt so a
+    // retry does not carry them into the request or the UI.
+    const base = [...messages];
+    while (base.length && base[base.length - 1].role === 'system') base.pop();
+    // On '다시 시도' the last user turn is still present; resending the same
+    // content must not append a second identical user message (which would
+    // reach Bedrock as two consecutive user turns -> ValidationException).
+    const lastMsg = base[base.length - 1];
+    const alreadyLast = lastMsg?.role === 'user' && lastMsg.content === message;
+    const updatedMessages = alreadyLast ? base : [...base, userMessage];
     setMessages(updatedMessages);
     setIsLoading(true);
     setLastError(null);
@@ -74,61 +87,81 @@ export default function BuilderPage() {
       let streamingContent = '';
       let streamingMsgAdded = false;
       let currentEventType = 'text';
+      // SSE lines can be split across network chunks; carry the trailing
+      // partial line over to the next read instead of parsing it broken.
+      let buffer = '';
+
+      const processLine = (line: string) => {
+        if (line.startsWith('event: ')) {
+          currentEventType = line.replace('event: ', '').trim();
+          return;
+        }
+        if (!line.startsWith('data: ')) return;
+        const dataStr = line.replace('data: ', '').trim();
+        try {
+          const data = JSON.parse(dataStr);
+
+          if (currentEventType === 'text' && data.content) {
+            streamingContent += data.content;
+            if (!streamingMsgAdded) {
+              streamingMsgAdded = true;
+              setMessages((prev) => [
+                ...prev,
+                { role: 'assistant', content: streamingContent, timestamp: new Date().toISOString() },
+              ]);
+            } else {
+              setMessages((prev) => {
+                const updated = [...prev];
+                updated[updated.length - 1] = {
+                  ...updated[updated.length - 1],
+                  content: streamingContent,
+                };
+                return updated;
+              });
+            }
+          } else if (currentEventType === 'done') {
+            setSessionId(data.sessionId || sessionId);
+            setState(data.state || state);
+            if (data.agentConfig) {
+              setGeneratedConfig(data.agentConfig);
+              // Sync the model dropdown to the generated config's model so a
+              // subsequent Save does not silently swap the model the LLM chose.
+              if (typeof data.agentConfig.model === 'string' && data.agentConfig.model) {
+                setSelectedModel(data.agentConfig.model);
+              }
+            }
+            if (!streamingMsgAdded && data.fullMessage) {
+              setMessages((prev) => [
+                ...prev,
+                { role: 'assistant', content: data.fullMessage, timestamp: new Date().toISOString() },
+              ]);
+            }
+          } else if (currentEventType === 'error') {
+            throw new Error(data.error || 'Builder stream error');
+          }
+        } catch (parseErr) {
+          if (parseErr instanceof SyntaxError) return;
+          throw parseErr;
+        }
+        currentEventType = 'text';
+      };
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          // Flush any complete line left in the buffer (last SSE line may
+          // arrive without a trailing newline).
+          if (buffer.length > 0) processLine(buffer);
+          break;
+        }
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        // Keep the last (possibly incomplete) segment in the buffer.
+        buffer = lines.pop() ?? '';
 
         for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEventType = line.replace('event: ', '').trim();
-          } else if (line.startsWith('data: ')) {
-            const dataStr = line.replace('data: ', '').trim();
-            try {
-              const data = JSON.parse(dataStr);
-
-              if (currentEventType === 'text' && data.content) {
-                streamingContent += data.content;
-                if (!streamingMsgAdded) {
-                  streamingMsgAdded = true;
-                  setMessages((prev) => [
-                    ...prev,
-                    { role: 'assistant', content: streamingContent, timestamp: new Date().toISOString() },
-                  ]);
-                } else {
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    updated[updated.length - 1] = {
-                      ...updated[updated.length - 1],
-                      content: streamingContent,
-                    };
-                    return updated;
-                  });
-                }
-              } else if (currentEventType === 'done') {
-                setSessionId(data.sessionId || sessionId);
-                setState(data.state || state);
-                if (data.agentConfig) {
-                  setGeneratedConfig(data.agentConfig);
-                }
-                if (!streamingMsgAdded && data.fullMessage) {
-                  setMessages((prev) => [
-                    ...prev,
-                    { role: 'assistant', content: data.fullMessage, timestamp: new Date().toISOString() },
-                  ]);
-                }
-              } else if (currentEventType === 'error') {
-                throw new Error(data.error || 'Builder stream error');
-              }
-            } catch (parseErr) {
-              if (parseErr instanceof SyntaxError) continue;
-              throw parseErr;
-            }
-            currentEventType = 'text';
-          }
+          processLine(line);
         }
       }
     } catch (error: unknown) {

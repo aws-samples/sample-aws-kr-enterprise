@@ -73,14 +73,28 @@ def _decode_token(token: str, jwks: dict) -> Optional[dict]:
         if not key:
             return None
 
+        # The SPA authenticates with the Cognito ACCESS token, which carries no
+        # `aud` claim (only `client_id`). Passing audience=CLIENT_ID to
+        # jwt.decode is therefore inert — python-jose skips audience validation
+        # when the token has no `aud`, so a validly-signed token from any other
+        # app client in the same pool would pass. Do NOT rely on that; verify
+        # signature/issuer/exp here and enforce the client binding explicitly
+        # below.
         claims = jwt.decode(
             token,
             key,
             algorithms=["RS256"],
-            audience=CLIENT_ID,
             issuer=f"https://cognito-idp.{REGION}.amazonaws.com/{USER_POOL_ID}",
-            options={"verify_exp": True},
+            options={"verify_exp": True, "verify_aud": False},
         )
+
+        # Enforce the app-client binding for whichever token type is presented:
+        # access tokens expose it as `client_id`, id tokens as `aud`.
+        token_client = claims.get("client_id") or claims.get("aud")
+        if CLIENT_ID and token_client != CLIENT_ID:
+            logger.debug("token client mismatch: %s != %s", token_client, CLIENT_ID)
+            return None
+
         return claims
     except JWTError as e:
         logger.debug(f"JWT verification failed: {e}")

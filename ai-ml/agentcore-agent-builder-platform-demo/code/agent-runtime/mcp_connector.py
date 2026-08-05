@@ -2,6 +2,8 @@
 
 import os
 from functools import partial
+
+import httpx
 from strands.tools.mcp import MCPClient
 from mcp.client.streamable_http import streamablehttp_client
 import boto3
@@ -10,6 +12,7 @@ from botocore.awsrequest import AWSRequest
 
 
 REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
+SERVICE = "bedrock-agentcore"
 
 # Cache of gateway name -> real (suffixed) gatewayId, resolved once per runtime.
 _GATEWAY_ID_CACHE: dict = {}
@@ -49,21 +52,41 @@ def _resolve_gateway_id(gateway_ref: str) -> str:
     return resolved
 
 
-def _get_sigv4_headers(url: str) -> dict:
-    """SigV4 서명 헤더 생성. 매 호출 시 새로운 credentials으로 서명."""
-    session = boto3.Session()
-    credentials = session.get_credentials().get_frozen_credentials()
-    request = AWSRequest(method="POST", url=url, data=b"")
-    SigV4Auth(credentials, "bedrock-agentcore", REGION).add_auth(request)
-    return dict(request.headers)
+class _SigV4Auth(httpx.Auth):
+    """httpx.Auth 구현: 매 요청마다 실제 method/URL/body로 SigV4 서명한다.
+
+    이전 구현은 init 시 빈 body(b"")로 한 번 서명한 헤더를 partial에 고정해
+    재사용했다. 실제 MCP JSON-RPC POST는 비어있지 않은 body와 고정된
+    X-Amz-Date를 실어 보내므로 날짜/body-hash가 stale해져
+    RequestTimeTooSkewed / SignatureDoesNotMatch가 발생한다(P2).
+    요청 시점에 서명하도록 바꿔 이를 해소한다."""
+
+    def __init__(self, region: str = REGION, service: str = SERVICE):
+        self._region = region
+        self._service = service
+        self._session = boto3.Session()
+
+    def auth_flow(self, request: httpx.Request):
+        # 요청 시점의 credentials로 실제 method/url/body를 서명한다.
+        credentials = self._session.get_credentials().get_frozen_credentials()
+        body = request.content or b""
+        aws_request = AWSRequest(
+            method=request.method,
+            url=str(request.url),
+            data=body,
+            headers={"Content-Type": request.headers.get("content-type", "application/json")},
+        )
+        SigV4Auth(credentials, self._service, self._region).add_auth(aws_request)
+        for key, value in aws_request.headers.items():
+            request.headers[key] = value
+        yield request
 
 
 def _create_transport_callable(gateway_id: str):
     """MCPClient에 전달할 transport callable 생성.
     streamablehttp_client는 async context manager를 반환하는 함수."""
     url = f"https://{gateway_id}.gateway.bedrock-agentcore.{REGION}.amazonaws.com/mcp"
-    headers = _get_sigv4_headers(url)
-    return partial(streamablehttp_client, url=url, headers=headers)
+    return partial(streamablehttp_client, url=url, auth=_SigV4Auth())
 
 
 def connect_gateways(config: dict) -> list[MCPClient]:

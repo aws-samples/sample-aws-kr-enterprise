@@ -9,6 +9,16 @@ terraform {
       source  = "hashicorp/null"
       version = "~> 3.0"
     }
+    # EventBridge shared secret (random_password) and CloudFront reports signing
+    # keypair (tls_private_key) added by the bug-hunt security fixes (H4/H9).
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 

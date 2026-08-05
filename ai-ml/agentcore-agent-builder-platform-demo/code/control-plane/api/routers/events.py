@@ -1,6 +1,7 @@
 """Event Trigger endpoint. CloudWatch Alarm -> EventBridge -> Platform API -> Agent invoke."""
 
 import asyncio
+import hmac
 import logging
 import os
 
@@ -11,14 +12,29 @@ router = APIRouter(prefix="/api/events", tags=["events"])
 logger = logging.getLogger(__name__)
 
 # This endpoint is exempt from Cognito JWT auth (called by EventBridge, which
-# cannot present a user token). It is instead gated by the shared API-key header
-# that the EventBridge connection injects (see modules/compute/eventbridge.tf:
-# api_key key=x-api-source). Overridable via EVENT_API_SOURCE for stronger secrets.
-EXPECTED_API_SOURCE = os.environ.get("EVENT_API_SOURCE", "eventbridge")
+# cannot present a user token). It is instead gated by a shared secret that the
+# EventBridge API-destination connection injects as the `x-api-source` header
+# (see modules/compute/eventbridge.tf). The secret is generated at deploy time
+# (random_password) and stored in SSM Parameter Store SecureString. The ECS task
+# definition's `secrets` block resolves that SSM SecureString at task start and
+# injects the value into this container as EVENTBRIDGE_SECRET (see
+# modules/compute/ecs.tf), so both sides use the same value with no plaintext in
+# the task definition.
+#
+# There is deliberately NO public default: if EVENTBRIDGE_SECRET is unset the
+# endpoint fails closed (401) rather than falling back to a world-known string.
+EXPECTED_EVENT_SECRET = os.environ.get("EVENTBRIDGE_SECRET", "")
 
 
 def _verify_event_source(request: Request):
-    if request.headers.get("x-api-source") != EXPECTED_API_SOURCE:
+    presented = request.headers.get("x-api-source", "")
+    if not EXPECTED_EVENT_SECRET:
+        logger.error(
+            "EVENTBRIDGE_SECRET is not configured; rejecting event trigger"
+        )
+        raise HTTPException(status_code=401, detail="Invalid or missing event source")
+    # Constant-time comparison to avoid leaking the secret via timing.
+    if not hmac.compare_digest(presented, EXPECTED_EVENT_SECRET):
         raise HTTPException(status_code=401, detail="Invalid or missing event source")
 
 

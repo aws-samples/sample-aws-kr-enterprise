@@ -4,12 +4,34 @@ TOOL_MATCHING → DELEGATION_CHECK → CONFIG_GENERATION → DONE"""
 
 import asyncio
 import json
+import logging
 import os
 from typing import AsyncGenerator
 
 import boto3
 
 REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
+
+logger = logging.getLogger(__name__)
+
+# The Builder Agent's own model. Keep current (K4). Overridable via env for
+# environments that pin a different inference profile.
+BUILDER_MODEL = os.environ.get(
+    "BUILDER_MODEL", "global.anthropic.claude-opus-4-8"
+)
+
+# Valid model allow-list injected into the Builder system prompt so the LLM
+# picks a real inference-profile id (bare string) for the generated agent's
+# `model` field instead of hallucinating one (K1).
+VALID_MODELS = [
+    "global.anthropic.claude-opus-5",
+    "global.anthropic.claude-opus-4-8",
+    "global.anthropic.claude-opus-4-7",
+    "global.anthropic.claude-sonnet-5",
+    "global.anthropic.claude-sonnet-4-6",
+    "global.anthropic.claude-fable-5",
+    "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+]
 
 
 class BuilderService:
@@ -35,7 +57,7 @@ class BuilderService:
         ]
 
         response = self.bedrock.invoke_model(
-            modelId="global.anthropic.claude-opus-4-6-v1",
+            modelId=BUILDER_MODEL,
             contentType="application/json",
             accept="application/json",
             body=json.dumps(
@@ -64,6 +86,20 @@ class BuilderService:
             if config_json:
                 config_json = self._ensure_complete_config(config_json)
                 result["agentConfig"] = config_json
+            else:
+                # DONE was driven by the ```json marker but the block could not
+                # be parsed (truncated / malformed). Report it rather than
+                # returning a config-less DONE the client silently ignores (M1).
+                logger.warning(
+                    "Builder reached DONE for session=%s but config JSON could "
+                    "not be extracted (truncated or malformed)",
+                    session_id,
+                )
+                result["error"] = (
+                    "생성된 Agent Config JSON을 파싱하지 못했습니다 "
+                    "(응답이 잘렸거나 형식이 올바르지 않습니다). 다시 시도해주세요."
+                )
+                result["errorCode"] = "config_parse_failed"
 
         return result
 
@@ -97,7 +133,7 @@ class BuilderService:
 
             response = await asyncio.to_thread(
                 self.bedrock.invoke_model_with_response_stream,
-                modelId="global.anthropic.claude-opus-4-6-v1",
+                modelId=BUILDER_MODEL,
                 contentType="application/json",
                 accept="application/json",
                 body=body,
@@ -130,6 +166,29 @@ class BuilderService:
                 if config_json:
                     config_json = self._ensure_complete_config(config_json)
                     done_data["agentConfig"] = config_json
+                else:
+                    # A ```json block was present (that is what drives DONE) but
+                    # it could not be parsed (truncated at max_tokens or invalid
+                    # JSON). Surface this instead of a silent DONE-without-config
+                    # dead end (M1).
+                    logger.warning(
+                        "Builder reached DONE for session=%s but config JSON "
+                        "could not be extracted (truncated or malformed)",
+                        session_id,
+                    )
+                    yield (
+                        "event: error\ndata: "
+                        + json.dumps(
+                            {
+                                "error": "생성된 Agent Config JSON을 파싱하지 못했습니다 "
+                                "(응답이 잘렸거나 형식이 올바르지 않습니다). 다시 시도해주세요.",
+                                "code": "config_parse_failed",
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n\n"
+                    )
+                    return
 
             yield f"event: done\ndata: {json.dumps(done_data, ensure_ascii=False)}\n\n"
 
@@ -221,14 +280,53 @@ Example systemPrompt (for an EKS Monitoring agent with boundary "EKS Cluster Obs
 
 If the systemPrompt you generate is shorter than 100 characters, you have done it wrong. Regenerate.
 
+## Valid Models (allow-list)
+The `model` field MUST be one bare string chosen EXACTLY from this list. Do NOT
+invent, abbreviate, or version-suffix a model id. If unsure, use
+`global.anthropic.claude-sonnet-4-6`.
+{models}
+
+## Agent Config JSON Schema
+When in CONFIG_GENERATION state, output a complete Agent Config JSON matching
+this schema (types shown; omit unknown optional fields rather than guessing):
+{config_schema}
+
 ## Output Format
 When in CONFIG_GENERATION state, output a complete Agent Config JSON matching the schema.
 The JSON MUST be wrapped in ```json ... ``` markers."""
+
+        config_schema = {
+            "name": "string",
+            "contextBoundary": "string",
+            "model": "string (one of the Valid Models above)",
+            "systemPrompt": "string (see systemPrompt rules above)",
+            "gateways": [{"gatewayId": "string", "toolFilter": '"all" | ["toolName", ...]'}],
+            "delegations": [
+                {
+                    "targetAgent": "string (existing agentId from Existing Agent Cards)",
+                    "purpose": "string",
+                    "scope": ["string"],
+                    "condition": "string",
+                    "timeout": "int (seconds)",
+                }
+            ],
+            "harness": {
+                "preHooks": ["string"],
+                "postHooks": ["string"],
+                "hitlActions": ["string"],
+                "evaluator": {"enabled": "bool", "criteria": "string"},
+            },
+            "triggers": [
+                {"type": "chat | schedule | event", "source": "string", "cron": "string", "pattern": {}, "description": "string"}
+            ],
+        }
 
         return base.format(
             state=state,
             catalog=json.dumps(catalog, indent=2, ensure_ascii=False),
             cards=json.dumps(cards, indent=2, ensure_ascii=False),
+            models="\n".join(f"- {m}" for m in VALID_MODELS),
+            config_schema=json.dumps(config_schema, indent=2, ensure_ascii=False),
         )
 
     def _determine_next_state(self, current: str, response: str) -> str:
@@ -276,7 +374,9 @@ The JSON MUST be wrapped in ```json ... ``` markers."""
         if any(signal in response_lower for signal in signals):
             return state_flow.get(current, current)
 
-        return state_flow.get(current, current)
+        # No transition signal in the reply — the assistant is still working
+        # within the current phase, so hold instead of advancing (P8).
+        return current
 
     def _ensure_complete_config(self, config: dict) -> dict:
         """Builder가 생성한 config의 필수 필드를 보완."""
@@ -308,6 +408,18 @@ The JSON MUST be wrapped in ```json ... ``` markers."""
                 }
             )
         config["delegations"] = normalized
+
+        # Normalize the model to a valid bare string. The LLM may hallucinate
+        # or version-suffix an id; keep only allow-listed values and fall back
+        # to a current default otherwise (K1 / MODEL contract: bare string).
+        model = config.get("model")
+        if not isinstance(model, str) or model not in VALID_MODELS:
+            if model:
+                logger.warning(
+                    "Builder produced invalid model %r; falling back to default",
+                    model,
+                )
+            config["model"] = "global.anthropic.claude-sonnet-4-6"
 
         boundary = config.get("contextBoundary", "General Purpose")
 
@@ -356,12 +468,16 @@ The JSON MUST be wrapped in ```json ... ``` markers."""
     def _extract_config_json(self, text: str) -> dict | None:
         if "```json" not in text:
             return None
+        start = text.index("```json") + 7
+        # A truncated response (hit max_tokens mid-object) has an opening
+        # ```json fence but no closing fence — fall back to the remainder.
         try:
-            start = text.index("```json") + 7
             end = text.index("```", start)
+            raw = text[start:end].strip()
         except ValueError:
-            return None
+            raw = text[start:].strip()
         try:
-            return json.loads(text[start:end].strip())
-        except json.JSONDecodeError:
+            return json.loads(raw)
+        except json.JSONDecodeError as e:
+            logger.warning("Failed to parse Builder config JSON: %s", e)
             return None

@@ -228,6 +228,21 @@ def _initialize_agent():
                 system_prompt = system_prompt + scope_rule
                 logger.info("Persona-injection: scope rule injected for %s", AGENT_ID)
 
+        # CAP_HONESTY(K5): 조립되는 모든 agent에 전역 capability-honesty 절을 주입한다.
+        # 미구현 기능(cross-account/cross-region/write 등)을 제안하거나, 빈 tool
+        # 결과를 두고 다음 단계를 날조하는 환각을 막는다.
+        capability_honesty_clause = (
+            f"\n\n[CAPABILITY HONESTY] You operate ONLY on the current AWS account "
+            f"and region ({REGION}). State facts about this account/region only. "
+            f"Do NOT offer or imply capabilities that are not implemented here — in "
+            f"particular do NOT suggest cross-account access, cross-region re-querying, "
+            f"or any write/mutating action unless a bound tool explicitly provides it. "
+            f"When a tool returns an empty result, report the empty fact plainly "
+            f"(e.g. 'no EKS cluster in this region') and do NOT invent next steps, "
+            f"alternative accounts/regions, or data that the tools did not return."
+        )
+        system_prompt = system_prompt + capability_honesty_clause
+
         agent = Agent(
             model=model,
             tools=all_tools if all_tools else None,
@@ -284,7 +299,15 @@ async def _stream_agent(body: dict):
     obs_hook: ObservabilityHook = _state["obs_hook"]
     table = _state["table"]
 
+    # Warm instance는 Agent 싱글턴을 재사용한다. agent.messages를 비우지 않으면
+    # 이전 세션의 대화 turn이 남아 다음 세션에 누출된다(P1). 플랫폼은 매 요청마다
+    # 전체 컨텍스트를 prompt로 전달하므로 요청 시작 시 대화 이력을 초기화한다.
+    agent.messages.clear()
+
     _request_context["session_id"] = session_id
+    # 수신한 delegationDepth를 context에 저장 → A2A invoke tool이 하류로 보낼 depth를
+    # LLM이 정한 tool arg가 아니라 실제 수신 depth 기준으로 누적하게 한다(H3).
+    _request_context["delegation_depth"] = context.get("delegationDepth", 0)
 
     current_span = trace.get_current_span()
     if current_span.is_recording():
@@ -357,8 +380,16 @@ async def invocations(request: Request):
     table = _state["table"]
     obs_hook: ObservabilityHook = _state["obs_hook"]
 
+    # Warm instance는 Agent 싱글턴을 재사용한다. agent.messages를 비우지 않으면
+    # 이전 세션의 대화 turn이 남아 다음 세션에 누출된다(P1). 플랫폼은 매 요청마다
+    # 전체 컨텍스트를 prompt로 전달하므로 요청 시작 시 대화 이력을 초기화한다.
+    agent.messages.clear()
+
     # A2A tool에 session_id 주입 (LLM이 빈 문자열로 보내도 fallback)
     _request_context["session_id"] = session_id
+    # 수신한 delegationDepth를 context에 저장 → A2A invoke tool이 하류로 보낼 depth를
+    # LLM이 정한 tool arg가 아니라 실제 수신 depth 기준으로 누적하게 한다(H3).
+    _request_context["delegation_depth"] = depth
 
     current_span = trace.get_current_span()
     if current_span.is_recording():

@@ -6,5 +6,9 @@ pydantic>=2.0.0
 pydantic[email]>=2.0.0
 sse-starlette>=1.8.0
 opentelemetry-api>=1.20.0
+# SDK + OTLP exporter so OtelMiddleware.setup_tracing() records/exports spans
+# (M24). Without these, opentelemetry-api's no-op provider drops every span.
+opentelemetry-sdk>=1.20.0
+opentelemetry-exporter-otlp>=1.20.0
 python-jose[cryptography]>=3.3.0
 httpx>=0.24.0

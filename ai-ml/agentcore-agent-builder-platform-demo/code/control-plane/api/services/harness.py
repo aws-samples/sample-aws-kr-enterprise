@@ -27,6 +27,15 @@ class Tier1Harness:
                     [f"Tool not found in catalog: {t}" for t in missing_tools]
                 )
 
+        # Validate delegation targets: a config delegating to an unregistered
+        # agent id (e.g. a short display name instead of the full agentId)
+        # would otherwise deploy clean and fail silently at runtime.
+        delegations = config.get("delegations", [])
+        missing_targets = self.db.validate_delegations(delegations)
+        errors.extend(
+            [f"Delegation targetAgent not registered: {t}" for t in missing_targets]
+        )
+
         return {"passed": len(errors) == 0, "errors": errors}
 
     def audit_log(

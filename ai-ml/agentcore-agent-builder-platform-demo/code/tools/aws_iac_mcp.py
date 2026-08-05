@@ -3,11 +3,45 @@ AWS IaC MCP Lambda - CloudFormation/CDK validation, troubleshooting, documentati
 CloudFormation/CDK 검증, 배포 문제 해결, 문서 검색을 위한 AWS IaC MCP 람다
 """
 import json
+import socket
+import ipaddress
 import urllib.request
 import urllib.parse
 import re
 from html.parser import HTMLParser
-from cross_account import get_client, get_role_arn
+from cross_account import get_client, get_role_arn, default_region
+
+
+def _assert_public_http_url(url):
+    """SSRF guard for the doc-page reader.
+
+    Validates the scheme is http(s), then resolves the hostname and rejects the
+    request if ANY resolved address is private/loopback/link-local/reserved (e.g.
+    169.254.169.254, 127.0.0.1, 10./172.16./192.168., ::1). Prevents the Lambda
+    from being coerced into fetching internal endpoints or instance metadata.
+    스킴 검증 후 호스트를 해석하여 사설/루프백/링크로컬/예약 주소면 차단 (SSRF 방지)."""
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("Only http/https URLs are supported")
+    host = parsed.hostname
+    if not host:
+        raise ValueError("URL has no host")
+
+    # Resolve all A/AAAA records; block if any address is non-public. / 모든 주소 해석 후 비공개 주소 차단.
+    try:
+        infos = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80))
+    except socket.gaierror as e:
+        raise ValueError(f"DNS resolution failed: {e}")
+
+    for info in infos:
+        ip_str = info[4][0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            raise ValueError("Unresolvable host address")
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
+            raise ValueError("Blocked non-public destination address")
 
 
 class _TextExtractor(HTMLParser):
@@ -196,10 +230,10 @@ def search_cdk_docs(query, language='typescript'):
 
 def read_doc_page(url, max_length=10000):
     """Fetch documentation page and convert to simple text. / 문서 페이지를 가져와서 단순 텍스트로 변환합니다."""
-    # Reject non-http(s) schemes (file:/ftp:/custom) to prevent local file / SSRF reads
-    # http(s) 외 스킴(file:/ftp:/커스텀) 차단하여 로컬 파일 / SSRF 접근 방지
-    if urllib.parse.urlparse(url).scheme not in ("http", "https"):
-        raise ValueError("Only http/https URLs are supported")
+    # Reject non-http(s) schemes and non-public destinations to prevent local
+    # file reads and SSRF into internal/metadata endpoints.
+    # http(s) 외 스킴 및 비공개 목적지 차단하여 로컬 파일 / SSRF 접근 방지
+    _assert_public_http_url(url)
     # Fetch raw HTML from URL / URL에서 원시 HTML 가져오기
     req = urllib.request.Request(url, headers={'User-Agent': 'AWSops-IaC-MCP/1.0'})
     with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 - scheme validated to http/https above
@@ -248,7 +282,7 @@ def lambda_handler(event, context):
 
     # Tool handler: validate CloudFormation template / 도구 핸들러: CloudFormation 템플릿 검증
     if tool_name == "validate_cloudformation_template":
-        result = validate_cfn_template(args.get("template_content", ""), args.get("region", "ap-northeast-2"), role_arn)
+        result = validate_cfn_template(args.get("template_content", ""), args.get("region") or default_region(), role_arn)
         return {"statusCode": 200, "body": json.dumps(result, default=str)}
 
     # Tool handler: check template compliance / 도구 핸들러: 템플릿 규정 준수 확인
@@ -262,12 +296,12 @@ def lambda_handler(event, context):
             issues.append({"severity": "HIGH", "rule": "no-public-access", "message": "PubliclyAccessible is true"})
         if "Encrypted" not in tmpl and ("AWS::RDS" in tmpl or "AWS::EBS" in tmpl):
             issues.append({"severity": "MEDIUM", "rule": "encryption-required", "message": "Encryption not explicitly enabled"})
-        validation = validate_cfn_template(tmpl, 'ap-northeast-2', role_arn)
+        validation = validate_cfn_template(tmpl, default_region(), role_arn)
         return {"statusCode": 200, "body": json.dumps({"validation": validation, "compliance_issues": issues}, default=str)}
 
     # Tool handler: troubleshoot deployment failures / 도구 핸들러: 배포 실패 문제 해결
     elif tool_name == "troubleshoot_cloudformation_deployment":
-        result = troubleshoot_cfn_deployment(args.get("stack_name", ""), args.get("region", "ap-northeast-2"), role_arn)
+        result = troubleshoot_cfn_deployment(args.get("stack_name", ""), args.get("region") or default_region(), role_arn)
         return {"statusCode": 200, "body": json.dumps(result, default=str)}
 
     # Tool handler: pre-deploy validation instructions / 도구 핸들러: 배포 전 검증 안내

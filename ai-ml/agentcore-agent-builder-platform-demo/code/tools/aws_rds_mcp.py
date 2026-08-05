@@ -3,7 +3,20 @@ AWS RDS MCP Lambda - MySQL/PostgreSQL instance management, queries via RDS Data 
 AWS RDS MCP 람다 - MySQL/PostgreSQL 인스턴스 관리, RDS Data API를 통한 쿼리
 """
 import json
-from cross_account import get_client, get_role_arn
+import re
+from cross_account import get_client, get_role_arn, default_region
+
+# Write / permission / procedure keywords that must never run through the
+# read-only Data API path. Matched as whole words regardless of surrounding
+# punctuation (e.g. "1;DELETE", "GRANT ALL"). / 쓰기·권한·프로시저 키워드 차단.
+_WRITE_KEYWORDS = {
+    "insert", "update", "delete", "drop", "alter", "create", "truncate",
+    "replace", "grant", "revoke", "call", "merge", "rename",
+    "exec", "execute", "load", "lock", "attach",
+    "into",  # SELECT ... INTO writes to a new table/file
+}
+# Extract SQL word tokens, ignoring punctuation glue. / 구두점 무시하고 SQL 단어 토큰 추출.
+_SQL_WORD_RE = re.compile(r"[A-Za-z_]+")
 
 
 def lambda_handler(event, context):
@@ -23,7 +36,7 @@ def lambda_handler(event, context):
     args = params.get("arguments", params) if "arguments" in params else params
     target_account_id = args.pop('target_account_id', None)
     role_arn = get_role_arn(target_account_id) if target_account_id else None
-    region = args.get("region", "ap-northeast-2")
+    region = args.get("region") or default_region()
 
     # Auto-detect tool from parameters if not specified / tool_name 미지정 시 파라미터로 도구 자동 감지
     if not t:
@@ -87,9 +100,17 @@ def lambda_handler(event, context):
             rds_data = get_client('rds-data', region, role_arn)
             # Block write operations (read-only enforcement) / 쓰기 작업 차단 (읽기 전용 강제)
             sql = args["sql"].strip()
-            for kw in ["drop", "delete", "update", "insert", "alter", "create", "truncate"]:
-                if kw in sql.lower().split():
-                    return err("Only SELECT queries allowed")
+            # Reject stacked statements — anything after the first ';' could be a
+            # write hidden behind a SELECT (e.g. "SELECT 1;DELETE FROM users").
+            # 세미콜론으로 이어붙인 다중 문(스택 쿼리) 거부.
+            if ";" in sql.rstrip().rstrip(";"):
+                return err("Only a single SELECT statement is allowed")
+            words = [w.lower() for w in _SQL_WORD_RE.findall(sql)]
+            # Must start with SELECT/WITH and contain no write/permission keyword. / SELECT·WITH로 시작하고 쓰기 키워드 없어야 함.
+            if not words or words[0] not in ("select", "with"):
+                return err("Only SELECT queries allowed")
+            if set(words) & _WRITE_KEYWORDS:
+                return err("Only SELECT queries allowed")
             # Execute SQL statement via Data API / Data API로 SQL 문 실행
             resp = rds_data.execute_statement(
                 resourceArn=args["resource_arn"], secretArn=args["secret_arn"],

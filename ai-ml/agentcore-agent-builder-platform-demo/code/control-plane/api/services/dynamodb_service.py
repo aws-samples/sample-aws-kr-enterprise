@@ -163,10 +163,17 @@ class DynamoDBService:
         self.table.put_item(Item=item)
 
     def list_recent_sessions(self, limit: int = 20) -> list[dict]:
+        # The GSI sort key is PK ("SESSION#<ULID>"); a ULID is lexicographically
+        # time-ordered, so ScanIndexForward=False returns the newest sessions
+        # first. Without it a single page returned the OLDEST sessions and the
+        # genuinely recent ones lived on unfetched pages beyond ~1MB of META
+        # rows. Fetch only the newest `limit` items directly.
         response = self.table.query(
             IndexName="sk-pk-index",
             KeyConditionExpression=Key("SK").eq("META")
             & Key("PK").begins_with("SESSION#"),
+            ScanIndexForward=False,
+            Limit=limit,
         )
         items = response.get("Items", [])
         for item in items:
@@ -205,6 +212,21 @@ class DynamoDBService:
             & Key("PK").begins_with("GATEWAY#"),
         )
         return response.get("Items", [])
+
+    def validate_delegations(self, delegations: list[dict]) -> list[str]:
+        """Quality Gate: every delegation targetAgent must be a registered
+        agent (an AGENT#<id>/CONFIG item exists). Returns the list of unknown
+        targets so a config delegating to a non-existent agent fails the gate
+        instead of failing silently at runtime."""
+        missing = []
+        for d in delegations:
+            target = d.get("targetAgent", "")
+            if not target:
+                missing.append("(empty targetAgent)")
+                continue
+            if not self.get_agent_config(target):
+                missing.append(target)
+        return missing
 
     def validate_tool_filter(self, gateways: list[dict]) -> list[str]:
         """Quality Gate: toolFilter의 모든 Tool이 카탈로그에 존재하는지 검증."""
