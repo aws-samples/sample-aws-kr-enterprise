@@ -50,7 +50,7 @@
 
 | 도구 | 버전 | 용도 |
 |------|------|------|
-| Node.js | 18+ | Frontend |
+| Node.js | 20.x / 22.x / 24+ | Frontend 및 Vitest 4 |
 | pnpm | 9+ | 패키지 매니저 (워크스페이스) |
 | Python | 3.12+ | Backend |
 | Poetry | 1.8+ | Python 의존성 |
