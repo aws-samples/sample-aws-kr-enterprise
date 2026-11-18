@@ -5,6 +5,6 @@
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": ["aws"],
-    "kiroAgentSdkSha256": "39eb54d43c47545b8c7fba738c1de2d03ad60d843626e8212e9ebe2ca03f4e6b"
+    "kiroAgentSdkSha256": "1b5cdff8c3d99fef229ba3c3b165fb4f4395f9385d4b96638893982013f9f000"
   }
 }
