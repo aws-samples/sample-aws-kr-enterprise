@@ -187,9 +187,35 @@ async def response(client):
     return result.result or ""
 
 
+async def wait_for_fixer_tools(client, timeout=60):
+    """A fresh Kiro session can accept its first prompt before its MCP servers list their tools."""
+    required = {"repository": {"get_commit_changes", "read_repository_file"},
+                "changes": {"open_fix_pull_request"}}
+    deadline = asyncio.get_running_loop().time() + timeout
+    while True:
+        snapshot = await client.get_mcp_status() or {}
+        servers = {server["name"]: server for server in snapshot.get("mcpServers", [])}
+        missing = []
+        for name, tools in required.items():
+            server = servers.get(name, {})
+            status = server.get("status", "pending")
+            if status in ("failed", "disabled", "needs-auth"):
+                raise RuntimeError(f"Fixer MCP server {name} is {status}")
+            enabled = {tool["name"] for tool in server.get("tools", []) if not tool.get("disabled")}
+            if status != "connected" or not tools <= enabled:
+                missing.append(name)
+        if not missing:
+            return
+        if asyncio.get_running_loop().time() >= deadline:
+            raise TimeoutError(f"Fixer tools unavailable on {', '.join(missing)}")
+        await asyncio.sleep(0.25)
+
+
 async def ask(role, prompt, extra_env=None, **values):
     """Run one prompt on a fresh Kiro session of the given agent profile and return the final text."""
     prepare()
     async with KiroSDKClient(options(role, extra_env, **values)) as client:
+        if role == "fixer":
+            await wait_for_fixer_tools(client)
         await client.query(prompt)
         return await response(client)

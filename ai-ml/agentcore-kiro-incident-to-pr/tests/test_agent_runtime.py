@@ -458,3 +458,32 @@ def test_unchanged_memories_keep_their_expiry(main):
                                                    {"title": "fresh", "content": "new"}])))
     assert table.get_item(Key={"pk": "memory#user", "sk": "fact"})["Item"]["expires_at"] == 100
     assert table.get_item(Key={"pk": "memory#user", "sk": "fresh"})["Item"]["expires_at"] > time.time()
+
+
+def test_fixer_first_prompt_waits_for_discovery(main, monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+    runtime = main.kiro_runtime
+    repository = {"name": "repository", "status": "connected", "tools": [
+        {"name": "get_commit_changes"}, {"name": "read_repository_file"}]}
+    changes = {"name": "changes", "status": "connected", "tools": [{"name": "open_fix_pull_request"}]}
+    snapshots = iter([{}, {"mcpServers": [repository, {**changes, "tools": []}]},
+                      {"mcpServers": [repository, changes]}])
+    client = MagicMock()
+    client.get_mcp_status = AsyncMock(side_effect=lambda: next(snapshots))
+    client.query = AsyncMock()
+    ctx = MagicMock()
+    ctx.__aenter__.return_value = client
+    monkeypatch.setattr(runtime, "KiroSDKClient", lambda _: ctx)
+    monkeypatch.setattr(runtime, "options", lambda *a, **kw: None)
+    monkeypatch.setattr(runtime, "prepare", lambda: None)
+    monkeypatch.setattr(runtime, "response", AsyncMock(return_value="done"))
+    assert asyncio.run(runtime.ask("fixer", "test")) == "done"
+    client.query.assert_awaited_once_with("test")
+    assert client.get_mcp_status.await_count == 3
+
+
+def test_fixer_unavailable_tools_fail_within_deadline(main):
+    from unittest.mock import AsyncMock
+    client = SimpleNamespace(get_mcp_status=AsyncMock(return_value={"mcpServers": []}))
+    with pytest.raises(TimeoutError, match="repository, changes"):
+        asyncio.run(main.kiro_runtime.wait_for_fixer_tools(client, timeout=0))
