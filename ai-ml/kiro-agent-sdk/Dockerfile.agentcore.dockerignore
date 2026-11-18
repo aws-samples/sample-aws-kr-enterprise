@@ -1,0 +1,11 @@
+**
+!pyproject.toml
+!README.md
+!LICENSE
+!src
+!src/**
+src/**/__pycache__/
+src/**/*.pyc
+!scripts
+!scripts/prewarm_kiro.py
+!scripts/check_bundled_runtime.py

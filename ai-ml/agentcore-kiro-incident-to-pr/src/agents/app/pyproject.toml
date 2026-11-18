@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "incident-tools"
+version = "0.1.0"
+description = "AWS investigation and fix pull request MCP tools for the Kiro incident agents"
+requires-python = ">=3.10"
+dependencies = ["mcp>=2.3,<3", "boto3>=1.42.1"]
+
+[project.scripts]
+incident-tools = "incident_tools.server:main"
+
+[tool.setuptools]
+packages = ["incident_tools"]

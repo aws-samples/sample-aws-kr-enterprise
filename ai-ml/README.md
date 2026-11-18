@@ -10,6 +10,7 @@ AWS의 AI/ML 서비스를 활용한 데모 및 샘플 코드 모음입니다. Am
 - [Amazon Nova](https://aws.amazon.com/ko/nova/) - 빠르고 비용 효율적인 파운데이션 모델 포트폴리오
 - [Amazon Rekognition](https://aws.amazon.com/ko/rekognition/) - ML 기반 이미지 인식 및 비디오 분석 서비스
 - [Amazon Textract](https://aws.amazon.com/ko/textract/) - 문서에서 텍스트, 필기, 데이터를 자동 추출하는 ML 서비스
+- [Kiro](https://kiro.dev/) - 스펙 기반 개발을 지원하는 에이전틱 AI IDE 및 CLI
 
 ## 프로젝트 목록
 
@@ -21,9 +22,12 @@ AWS의 AI/ML 서비스를 활용한 데모 및 샘플 코드 모음입니다. Am
 | [agentcore-aiops-demo](./agentcore-aiops-demo/) | LLM 기반 멀티 에이전트 AIOps 플랫폼. CloudWatch 알람 발생 시 Reflexion 패턴(Collector→Writer→Reviewer) RCA Graph가 자동으로 근본 원인을 분석하고 한국어 리포트를 생성. 사용자 승인 후 Executor Agent가 자동 복구 수행. WebSocket 채팅으로 자연어 인프라 조사 지원 | Bedrock AgentCore, Strands Agents, Bedrock Knowledge Base, OpenSearch Serverless, DynamoDB, Lambda, CloudFront |
 | [claude-code-bedrock-enterprise-blueprint](./claude-code-bedrock-enterprise-blueprint/) | Claude Code on Amazon Bedrock 엔터프라이즈 블루프린트. IAM Identity Center SSO 인증, LiteLLM Proxy 기반 LLM Gateway, Virtual Key 자동 생성/캐싱, 사용자별 예산 관리, CloudWatch 모니터링까지 엔드투엔드 인프라를 CDK NestedStack으로 구현 | Amazon Bedrock, IAM Identity Center, ECS Fargate, ALB, Aurora Serverless v2, DynamoDB, Lambda, API Gateway, CloudWatch |
 | [mobile-designer](./mobile-designer/) | AI 기반 Android UI 디자인 도구. 자연어 대화와 파일 업로드로 앱 요구사항을 수집한 뒤, 요구사항→와이어프레임→디자인→핸드오프 4단계 워크플로우로 설계하고, Android Studio에서 바로 빌드 가능한 Jetpack Compose 프로젝트(ZIP)로 핸드오프. 단계 전파·실시간 디자인 토큰 트윅·코멘트/공유 협업 지원 | Amazon Bedrock, Strands Agents, ECS Fargate, ALB, DynamoDB, S3, CloudFront, Secrets Manager |
+| [kiro-agent-sdk](./kiro-agent-sdk/) | Kiro CLI를 에이전트 실행 엔진으로 쓰는 비동기 Python SDK. Kiro IDE와 CLI에서 만든 `.kiro/` 프로젝트(custom agent, steering, 스킬, MCP 설정)를 애플리케이션에서 그대로 실행하고, 도구 권한, 훅, 세션, 인증을 코드로 제어. 일반 서버와 AgentCore Runtime(컨테이너, CodeZip) 배포 지원 | Kiro, Amazon Bedrock AgentCore |
+| [agentcore-kiro-incident-to-pr](./agentcore-kiro-incident-to-pr/) | 장애 분석에서 수정 PR까지 이어지는 Kiro 멀티 에이전트 데모. CloudWatch 알람이 발생하면 Reflexion 패턴(Collector, Writer, Reviewer)으로 로그, 메트릭, 리소스 상태, 최근 커밋과 배포 기록을 읽기 전용으로 조사해 한국어 RCA 리포트를 작성하고, Fixer 에이전트가 GitOps 저장소에 수정 PR을 엶. 사람이 리뷰하고 병합하면 파이프라인이 배포하며 리포트가 배포 완료로 바뀜. 에이전트는 AWS 리소스를 직접 변경하지 않음 | Amazon Bedrock AgentCore, Kiro, CodeCommit, CodePipeline, CodeBuild, DynamoDB, Lambda, CloudFront |
 
 ## 참고 리소스
 
 - [AWS AI/ML 서비스 소개](https://aws.amazon.com/ko/ai/machine-learning/) - AWS 기계 학습 서비스 전체 소개 및 고객 사례
 - [Amazon Bedrock 사용 설명서](https://docs.aws.amazon.com/ko_kr/bedrock/latest/userguide/what-is-bedrock.html) - Amazon Bedrock 공식 기술 문서
 - [Amazon SageMaker 사용 설명서](https://docs.aws.amazon.com/ko_kr/sagemaker/latest/dg/whatis.html) - Amazon SageMaker 공식 기술 문서
+- [Kiro 공식 문서](https://kiro.dev/docs/) - Kiro IDE와 CLI 설치 및 활용 가이드

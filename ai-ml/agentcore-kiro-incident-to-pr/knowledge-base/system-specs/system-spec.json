@@ -1,0 +1,79 @@
+{
+  "system_name": "Incident to PR Demo - Sample Application",
+  "architecture": "3-tier web application",
+  "region": "ap-northeast-2",
+  "components": {
+    "load_balancer": {
+      "type": "ALB",
+      "scheme": "internet-facing",
+      "listeners": [
+        {
+          "port": 80,
+          "protocol": "HTTP"
+        }
+      ],
+      "health_check": {
+        "path": "/health",
+        "interval_seconds": 30
+      }
+    },
+    "compute": {
+      "type": "EC2 Auto Scaling Group",
+      "instance_type": "t3.micro",
+      "min_size": 2,
+      "max_size": 2,
+      "application": "Flask (Python) health check API"
+    },
+    "database": {
+      "type": "RDS PostgreSQL",
+      "instance_class": "db.t3.micro",
+      "multi_az": false,
+      "port": 5432
+    }
+  },
+  "network": {
+    "vpc_cidr": "10.0.0.0/16",
+    "public_subnets": [
+      "ALB"
+    ],
+    "private_subnets": [
+      "EC2",
+      "RDS"
+    ],
+    "nat_gateways": 1
+  },
+  "monitoring": {
+    "alarms": [
+      {
+        "name": "incident-to-pr-alb-unhealthy",
+        "metric": "UnHealthyHostCount",
+        "threshold": 1
+      },
+      {
+        "name": "incident-to-pr-alb-5xx",
+        "metric": "HTTPCode_Target_5XX_Count",
+        "threshold": 5
+      },
+      {
+        "name": "incident-to-pr-ec2-status",
+        "metric": "StatusCheckFailed",
+        "threshold": 1
+      },
+      {
+        "name": "incident-to-pr-rds-conn",
+        "metric": "DatabaseConnections",
+        "threshold": 0,
+        "comparison": "LessThanOrEqualToThreshold"
+      }
+    ]
+  },
+  "delivery": {
+    "model": "GitOps",
+    "repository": "incident-to-pr-workload (CodeCommit)",
+    "branch": "main",
+    "pipeline": "incident-to-pr-workload (CodePipeline, CodeBuild cdk deploy)",
+    "infrastructure_code": "lib/sample-app-stack.ts (CDK stack IncidentToPrSampleAppStack)",
+    "application_code": "app/app.py",
+    "change_process": "Fixes are pull requests into main; a person reviews and merges, and the pipeline deploys."
+  }
+}

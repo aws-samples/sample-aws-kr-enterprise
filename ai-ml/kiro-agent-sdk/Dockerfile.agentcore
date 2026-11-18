@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1
+FROM --platform=$TARGETPLATFORM python:3.12-slim-bookworm
+
+ARG TARGETARCH
+ARG KIRO_INSTALL_MCP=0
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    KIRO_AGENTCORE_RUNTIME_CACHE=/opt/kiro-prewarm \
+    KIRO_AGENTCORE_CLI_PATH=/usr/local/bin/kiro-cli
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl unzip git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Official Kiro CLI 2.35.1 archives, fixed SHA-256. ARM uses the musl build
+# because the GNU ARM build requires a newer glibc than Debian bookworm.
+RUN case "$TARGETARCH" in \
+      amd64) archive=kirocli-x86_64-linux.zip; \
+             digest=9896a0849ea6abe259f7b3e742d6637dd413bbd8d6fa0afdf241c6c5614d4366 ;; \
+      arm64) archive=kirocli-aarch64-linux-musl.zip; \
+             digest=59758f69080a341184c520aa34d2245c24ae4d3859f231f591f477709420851f ;; \
+      *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac \
+    && curl --fail --location --silent --show-error \
+       "https://prod.download.cli.kiro.dev/stable/2.35.1/$archive" -o /tmp/kiro.zip \
+    && echo "$digest  /tmp/kiro.zip" | sha256sum -c - \
+    && unzip -q /tmp/kiro.zip 'kirocli/bin/kiro-cli' 'kirocli/bin/kiro-cli-chat' \
+       'kirocli/bin/kiro-cli-term' -d /tmp \
+    && install -m 755 /tmp/kirocli/bin/kiro-cli /tmp/kirocli/bin/kiro-cli-chat \
+       /tmp/kirocli/bin/kiro-cli-term /usr/local/bin/ \
+    && rm -rf /tmp/kiro.zip /tmp/kirocli \
+    && kiro-cli --version | grep -Fx 'kiro-cli 2.35.1'
+
+WORKDIR /opt/kiro-sdk
+COPY pyproject.toml README.md LICENSE ./
+COPY src ./src
+RUN python -m pip install --no-cache-dir '.[agentcore]' \
+    && case "$KIRO_INSTALL_MCP" in \
+         0) ;; \
+         1) python -m pip install --no-cache-dir 'mcp>=2.3,<3' ;; \
+         *) echo "KIRO_INSTALL_MCP must be 0 or 1" >&2; exit 1 ;; \
+       esac
+COPY scripts/prewarm_kiro.py ./scripts/prewarm_kiro.py
+COPY scripts/check_bundled_runtime.py ./scripts/check_bundled_runtime.py
+RUN python scripts/prewarm_kiro.py /opt/kiro-prewarm \
+    && chmod -R a+rX /opt/kiro-prewarm \
+    && groupadd --gid 10001 kiro \
+    && useradd --create-home --uid 10001 --gid 10001 --shell /usr/sbin/nologin kiro
+
+USER 10001:10001
+ENV HOME=/home/kiro
+RUN python scripts/check_bundled_runtime.py
+EXPOSE 8080
+CMD ["python", "-m", "kiro_agent_sdk.agentcore"]

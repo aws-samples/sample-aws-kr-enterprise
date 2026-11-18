@@ -1,0 +1,7 @@
+# Local test dependencies. Install kiro-agent-sdk from its directory as well (see README).
+boto3>=1.42.1
+mcp>=2.3,<3
+moto[dynamodb,s3,secretsmanager]>=5.1
+pytest>=8
+starlette
+uvicorn

@@ -1,0 +1,14 @@
+node_modules/
+cdk.out/
+cdk.out.*/
+*.egg-info/
+build/
+.DS_Store
+*.pyc
+__pycache__/
+*.js.map
+.env
+cdk.context.json
+.kiro/
+# The agent runtime is a Kiro project
+!src/agents/app/workspace/.kiro/

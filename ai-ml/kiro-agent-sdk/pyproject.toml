@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kiro-agent-sdk"
+version = "0.1.0"
+description = "Async Python SDK for Kiro CLI using the Agent Client Protocol"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["jsonschema>=4.18", "typing_extensions>=4.4"]
+license = "MIT-0"
+license-files = ["LICENSE"]
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.30,!=2.0.*,!=2.1.*,!=2.2.*,<3"]
+agentcore = ["starlette>=0.37,<2", "uvicorn>=0.30,<1", "boto3>=1.42.1"]
+
+[tool.setuptools.package-data]
+kiro_agent_sdk = ["py.typed"]
