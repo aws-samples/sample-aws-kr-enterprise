@@ -1,7 +1,7 @@
 ---
 name: chatbot
 description: "장애 분석 채팅 어시스턴트"
-model: claude-sonnet-4.6
+model: claude-opus-5.5
 tools: ["subagent", "@reports", "@rca"]
 mcpServers:
   reports:

@@ -1,7 +1,7 @@
 ---
 name: fixer
 description: "Fixer Agent: turns a reviewed RCA report into one pull request to the workload repository"
-model: claude-sonnet-4.6
+model: claude-opus-5.5
 tools: ["@repository", "@changes"]
 mcpServers:
   repository:

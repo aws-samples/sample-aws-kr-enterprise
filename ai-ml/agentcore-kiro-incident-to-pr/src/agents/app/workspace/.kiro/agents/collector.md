@@ -1,7 +1,7 @@
 ---
 name: collector
 description: "SRE information collector: evidence-based incident investigation through specialist subagents"
-model: claude-sonnet-4.6
+model: claude-opus-5.5
 tools: ["subagent"]
 ---
 You are an SRE Information Collector. Your job is to gather data about an incident using EVIDENCE-BASED investigation.

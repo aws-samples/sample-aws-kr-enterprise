@@ -1,7 +1,7 @@
 ---
 name: knowledge
 description: "Knowledge Agent: runbooks, past incidents and system specs from the knowledge base"
-model: claude-sonnet-4.6
+model: claude-opus-5.5
 tools: ["@knowledge"]
 mcpServers:
   knowledge:

@@ -19,7 +19,7 @@ import * as agentcore from "aws-cdk-lib/aws-bedrockagentcore";
 import { Construct } from "constructs";
 import { FIX_BRANCH_PREFIX, WORKLOAD_PIPELINE, WORKLOAD_REPOSITORY } from "./gitops-stack";
 
-const KIRO_MODEL = "claude-sonnet-4.6";
+const KIRO_MODEL = "claude-opus-5.5";
 
 /** SHA-256 over the kiro-agent-sdk sources the agent image installs (pyproject.toml, src/, the prewarm script). */
 export function sdkFingerprint(sdkPath: string): string {

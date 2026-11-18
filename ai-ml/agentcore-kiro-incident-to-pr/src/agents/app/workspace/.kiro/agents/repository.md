@@ -1,7 +1,7 @@
 ---
 name: repository
 description: "Repository Agent: workload commits, diffs, files and deployment pipeline runs (read-only)"
-model: claude-sonnet-4.6
+model: claude-opus-5.5
 tools: ["@repository"]
 mcpServers:
   repository:

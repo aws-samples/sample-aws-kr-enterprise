@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: "RCA report quality reviewer: PASS or FAIL with gaps"
-model: claude-sonnet-4.6
+model: claude-opus-5.5
 tools: []
 resources: ["file://.kiro/skills/rca-report/SKILL.md"]
 ---

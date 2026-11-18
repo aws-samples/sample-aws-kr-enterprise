@@ -73,7 +73,7 @@ AWS_REGION=ap-northeast-2 kiro-cli chat --agent collector
 | Backend API | API Gateway (REST + WebSocket), Lambda (Python 3.12) |
 | Agent Runtime | kiro-agent-sdk, Kiro CLI 2.35.1, Amazon Bedrock AgentCore Runtime (Docker arm64) |
 | Agent 정의 | Kiro custom agents, steering, skills, MCP 서버 (`incident-tools`) |
-| LLM | Kiro 모델 `claude-sonnet-4.6` (Kiro 구독으로 사용) |
+| LLM | Kiro 모델 `claude-opus-5.5` (Kiro 구독으로 사용) |
 | GitOps | CodeCommit (워크로드 저장소), CodePipeline + CodeBuild (`cdk deploy`, PR의 `cdk diff`) |
 | 지식 검색 | S3 문서 + BM25 검색 도구 |
 | Data Store | DynamoDB (workloads, reports, chat-memory) |
@@ -480,7 +480,7 @@ agentcore-kiro-incident-to-pr/
 
 | 변수 | 설명 |
 |------|------|
-| `KIRO_MODEL` | Kiro 모델 ID (`claude-sonnet-4.6`) |
+| `KIRO_MODEL` | Kiro 모델 ID (`claude-opus-5.5`) |
 | `KIRO_AUTH_MODE` | `apikey` 또는 `web` |
 | `KIRO_SECRET_ID` | Kiro 인증 시크릿 이름 |
 | `KNOWLEDGE_BUCKET` | S3 knowledge 버킷명 |

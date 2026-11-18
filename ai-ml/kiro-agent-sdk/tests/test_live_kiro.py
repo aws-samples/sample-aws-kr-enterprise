@@ -1762,14 +1762,14 @@ class KiroIntegrationTests(unittest.IsolatedAsyncioTestCase):
                    "XDG_CONFIG_HOME": str(Path(root) / "config"),
                    "XDG_CACHE_HOME": str(Path(root) / "cache")}
             options = KiroAgentOptions(cwd=cwd, env=env, agent_engine="v3", tools=[], turn_timeout=90,
-                model="kiro-sdk-unavailable-model", fallback_model="claude-sonnet-4.6",
+                model="kiro-sdk-unavailable-model", fallback_model="claude-sonnet-5.5",
                 fallback_model_mode="startup")
             session_id = None
             try:
                 async with KiroSDKClient(options) as client:
                     session_id = client.session_id
                     self.assertTrue(any(item.get("id") == "model" and
-                                        item.get("currentValue") == "claude-sonnet-4.6"
+                                        item.get("currentValue") == "claude-sonnet-5.5"
                                         for item in client.session_info.get("configOptions", [])))
                     await self._response(client, "Reply OK without tools.")
             finally:

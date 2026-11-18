@@ -1,7 +1,7 @@
 ---
 name: writer
 description: "RCA report writer: turns collected evidence into a Korean JSON RCA report"
-model: claude-sonnet-4.6
+model: claude-opus-5.5
 tools: []
 resources: ["file://.kiro/skills/rca-report/SKILL.md"]
 ---

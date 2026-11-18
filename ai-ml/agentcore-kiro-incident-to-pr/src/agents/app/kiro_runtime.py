@@ -20,7 +20,7 @@ REGION = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "ap-n
 STATE_DIR = Path(os.environ.get("INCIDENT_STATE_DIR", "/tmp/incident"))
 WORKSPACE = STATE_DIR / "workspace"
 KNOWLEDGE_DIR = STATE_DIR / "knowledge"
-MODEL = os.environ.get("KIRO_MODEL", "claude-sonnet-4.6")
+MODEL = os.environ.get("KIRO_MODEL", "claude-opus-5.5")
 AUTH_MODE = os.environ.get("KIRO_AUTH_MODE", "apikey")
 TURN_TIMEOUT = int(os.environ.get("KIRO_TURN_TIMEOUT", "900"))
 

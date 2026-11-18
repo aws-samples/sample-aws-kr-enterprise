@@ -20,7 +20,7 @@ from kiro_agent_sdk import (KiroSDKError, CLIConnectionError, InMemorySessionSto
                             ResultMessage, SessionArchiveError, create_mcp_server, delete_session, list_sessions, tool)
 
 WRITE_TITLE = "Write File"
-MODEL = "claude-sonnet-4.6"
+MODEL = "claude-sonnet-5.5"
 RUNTIMES = glob.glob(os.path.expanduser(
     "~/.local/share/kiro-cli/kas/2.35.1-*/node_modules/@kiro/agent/dist/server/acp-server.js"))
 

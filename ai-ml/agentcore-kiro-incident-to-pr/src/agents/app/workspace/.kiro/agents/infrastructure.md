@@ -1,7 +1,7 @@
 ---
 name: infrastructure
 description: "Infrastructure Agent: current state of EC2, ALB, RDS, SG, ASG, ECS, Lambda, VPC and NAT resources"
-model: claude-sonnet-4.6
+model: claude-opus-5.5
 tools: ["@infrastructure"]
 mcpServers:
   infrastructure:

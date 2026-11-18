@@ -1,7 +1,7 @@
 ---
 name: logs
 description: "Logs Agent: CloudWatch Logs, CloudTrail, EC2 system logs and AWS Config for specific resources"
-model: claude-sonnet-4.6
+model: claude-opus-5.5
 tools: ["@logs"]
 mcpServers:
   logs:

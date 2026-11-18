@@ -1,7 +1,7 @@
 ---
 name: metrics
 description: "Metrics Agent: CloudWatch metric data, alarms and metric lists"
-model: claude-sonnet-4.6
+model: claude-opus-5.5
 tools: ["@metrics"]
 mcpServers:
   metrics:
