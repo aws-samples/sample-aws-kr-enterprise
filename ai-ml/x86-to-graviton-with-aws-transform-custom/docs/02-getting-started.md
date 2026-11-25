@@ -27,16 +27,16 @@ AWS Transform Custom은 `atx` CLI를 사용합니다 (`aws transform` 명령어�
 
 ### 1. ATX CLI 설치
 
-```bash
-# macOS/Linux - pip를 사용한 설치
-pip install atx-cli
+AWS 공식 설치 script를 사용합니다. 설치 방법은 [Getting started with AWS Transform custom](https://docs.aws.amazon.com/transform/latest/userguide/custom-get-started.html) 문서를 기준으로 합니다.
 
-# 또는 직접 다운로드
-# https://docs.aws.amazon.com/transform/latest/userguide/custom-cli-install.html
+> **주의**: AWS Transform CLI는 PyPI로 배포되지 않습니다. `pip install`로 설치하지 마세요. PyPI에 있는 비슷한 이름의 package는 AWS가 배포한 것이 아닙니다.
+
+```bash
+# macOS/Linux
+curl -fsSL https://transform-cli.awsstatic.com/install.sh | bash
 
 # 버전 확인
 atx --version
-# 예상 출력: atx version 1.1.1
 ```
 
 ### 2. AWS 자격 증명 설정
