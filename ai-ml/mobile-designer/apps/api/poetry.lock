@@ -3192,14 +3192,14 @@ full = ["httpx (>=0.27.0,<0.29.0)", "itsdangerous", "jinja2", "python-multipart 
 
 [[package]]
 name = "strands-agents"
-version = "1.40.0"
+version = "1.48.0"
 description = "A model-driven approach to building AI agents in just a few lines of code"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "strands_agents-1.40.0-py3-none-any.whl", hash = "sha256:40c04f411e4082a6eb78b22d5b421757b27aac1f9a42e8198ff3db7fd4fcc13f"},
-    {file = "strands_agents-1.40.0.tar.gz", hash = "sha256:5d867c1255f8449f0030a9a9c085106c15b1704e871d0fea56d3c20b2309a4d3"},
+    {file = "strands_agents-1.48.0-py3-none-any.whl", hash = "sha256:7118a644e844ab6ef77f4bc9883b7082b2e7a309bcd689cc5ef5345e07abcc9e"},
+    {file = "strands_agents-1.48.0.tar.gz", hash = "sha256:bfbf5af9d8f1cb348b617d5f8d17b949ef3c3fdd74fa8c849f1fda46885449c2"},
 ]
 
 [package.dependencies]
@@ -3217,25 +3217,26 @@ typing-extensions = ">=4.13.2,<5.0.0"
 watchdog = ">=6.0.0,<7.0.0"
 
 [package.extras]
-a2a = ["a2a-sdk (>=0.3.0,<0.4.0)", "a2a-sdk[sql] (>=0.3.0,<0.4.0)", "fastapi (>=0.115.12,<1.0.0)", "httpx (>=0.28.1,<1.0.0)", "starlette (>=0.46.2,<1.0.0)", "uvicorn (>=0.34.2,<1.0.0)"]
-all = ["a2a-sdk (>=0.3.0,<0.4.0)", "a2a-sdk[sql] (>=0.3.0,<0.4.0)", "anthropic (>=0.21.0,<1.0.0)", "aws-bedrock-token-generator (>=1.1.0,<2.0.0)", "boto3-stubs[sagemaker-runtime] (>=1.26.0,<2.0.0)", "fastapi (>=0.115.12,<1.0.0)", "google-genai (>=1.32.0,<2.0.0)", "httpx (>=0.28.1,<1.0.0)", "litellm (>=1.75.9,<=1.83.13)", "llama-api-client (>=0.1.0,<1.0.0)", "mistralai (>=1.8.2,<2.0.0)", "ollama (>=0.4.8,<1.0.0)", "openai (>=1.68.0,<3.0.0)", "opentelemetry-exporter-otlp-proto-http (>=1.30.0,<2.0.0)", "sphinx (>=5.0.0,<10.0.0)", "sphinx-autodoc-typehints (>=1.12.0,<4.0.0)", "sphinx-rtd-theme (>=1.0.0,<4.0.0)", "starlette (>=0.46.2,<1.0.0)", "uvicorn (>=0.34.2,<1.0.0)", "writer-sdk (>=2.2.0,<3.0.0)"]
+a2a = ["a2a-sdk (>=0.3.0,<0.4.0)", "a2a-sdk[sql] (>=0.3.0,<0.4.0)", "fastapi (>=0.133.0,<1.0.0)", "httpx (>=0.28.1,<1.0.0)", "starlette (>=1.0.0,<2.0.0)", "uvicorn (>=0.34.2,<1.0.0)"]
+all = ["a2a-sdk (>=0.3.0,<0.4.0)", "a2a-sdk[sql] (>=0.3.0,<0.4.0)", "anthropic (>=0.21.0,<1.0.0)", "aws-bedrock-token-generator (>=1.1.0,<2.0.0)", "boto3-stubs[sagemaker-runtime] (>=1.26.0,<2.0.0)", "cedar-policy-mcp-schema-generator (==0.6.0)", "cedarpy (==4.8.6)", "fastapi (>=0.133.0,<1.0.0)", "google-genai (>=1.32.0,<3.0.0)", "httpx (>=0.28.1,<1.0.0)", "litellm (>=1.75.9,<=1.91.1)", "llama-api-client (>=0.1.0,<1.0.0)", "mistralai (>=2.0.0,<3.0.0)", "ollama (>=0.4.8,<1.0.0)", "openai (>=1.68.0,<3.0.0)", "opentelemetry-exporter-otlp-proto-http (>=1.30.0,<2.0.0)", "sphinx (>=5.0.0,<10.0.0)", "sphinx-autodoc-typehints (>=1.12.0,<4.0.0)", "sphinx-rtd-theme (>=1.0.0,<4.0.0)", "starlette (>=1.0.0,<2.0.0)", "uvicorn (>=0.34.2,<1.0.0)", "writer-sdk (>=2.2.0,<4.0.0)"]
 anthropic = ["anthropic (>=0.21.0,<1.0.0)"]
 bidi = ["aws-sdk-bedrock-runtime (>=0.4.0,<1.0.0) ; python_version >= \"3.12\"", "smithy-aws-core (>=0.4.0,<1.0.0) ; python_version >= \"3.12\""]
-bidi-all = ["a2a-sdk (>=0.3.0,<0.4.0)", "a2a-sdk[sql] (>=0.3.0,<0.4.0)", "aws-sdk-bedrock-runtime (>=0.4.0,<1.0.0) ; python_version >= \"3.12\"", "fastapi (>=0.115.12,<1.0.0)", "google-genai (>=1.32.0,<2.0.0)", "httpx (>=0.28.1,<1.0.0)", "opentelemetry-exporter-otlp-proto-http (>=1.30.0,<2.0.0)", "prompt-toolkit (>=3.0.0,<4.0.0)", "pyaudio (>=0.2.13,<1.0.0)", "smithy-aws-core (>=0.4.0,<1.0.0) ; python_version >= \"3.12\"", "sphinx (>=5.0.0,<10.0.0)", "sphinx-autodoc-typehints (>=1.12.0,<4.0.0)", "sphinx-rtd-theme (>=1.0.0,<4.0.0)", "starlette (>=0.46.2,<1.0.0)", "uvicorn (>=0.34.2,<1.0.0)", "websockets (>=15.0.0,<17.0.0)"]
-bidi-gemini = ["google-genai (>=1.32.0,<2.0.0)"]
+bidi-all = ["a2a-sdk (>=0.3.0,<0.4.0)", "a2a-sdk[sql] (>=0.3.0,<0.4.0)", "aws-sdk-bedrock-runtime (>=0.4.0,<1.0.0) ; python_version >= \"3.12\"", "fastapi (>=0.133.0,<1.0.0)", "google-genai (>=1.32.0,<3.0.0)", "httpx (>=0.28.1,<1.0.0)", "opentelemetry-exporter-otlp-proto-http (>=1.30.0,<2.0.0)", "prompt-toolkit (>=3.0.0,<4.0.0)", "pyaudio (>=0.2.13,<1.0.0)", "smithy-aws-core (>=0.4.0,<1.0.0) ; python_version >= \"3.12\"", "sphinx (>=5.0.0,<10.0.0)", "sphinx-autodoc-typehints (>=1.12.0,<4.0.0)", "sphinx-rtd-theme (>=1.0.0,<4.0.0)", "starlette (>=1.0.0,<2.0.0)", "uvicorn (>=0.34.2,<1.0.0)", "websockets (>=15.0.0,<17.0.0)"]
+bidi-gemini = ["google-genai (>=1.32.0,<3.0.0)"]
 bidi-io = ["prompt-toolkit (>=3.0.0,<4.0.0)", "pyaudio (>=0.2.13,<1.0.0)"]
 bidi-openai = ["websockets (>=15.0.0,<17.0.0)"]
-dev = ["commitizen (>=4.4.0,<5.0.0)", "hatch (>=1.0.0,<2.0.0)", "moto (>=5.1.0,<6.0.0)", "mypy (>=1.15.0,<2.0.0)", "pre-commit (>=3.2.0,<4.7.0)", "pytest (>=9.0.0,<10.0.0)", "pytest-asyncio (>=1.0.0,<1.4.0)", "pytest-cov (>=7.0.0,<8.0.0)", "pytest-timeout (>=2.0.0,<3.0.0)", "pytest-xdist (>=3.0.0,<4.0.0)", "ruff (>=0.13.0,<0.15.0)", "tenacity (>=9.0.0,<10.0.0)"]
+cedar = ["cedar-policy-mcp-schema-generator (==0.6.0)", "cedarpy (==4.8.6)"]
+dev = ["commitizen (>=4.4.0,<5.0.0)", "hatch (>=1.0.0,<2.0.0)", "moto (>=5.1.0,<6.0.0)", "mypy (>=1.15.0,<2.0.0)", "pre-commit (>=3.2.0,<4.7.0)", "pytest (>=9.0.0,<10.0.0)", "pytest-asyncio (>=1.0.0,<1.5.0)", "pytest-cov (>=7.0.0,<8.0.0)", "pytest-timeout (>=2.0.0,<3.0.0)", "pytest-xdist (>=3.0.0,<4.0.0)", "ruff (>=0.13.0,<0.16.0)", "tenacity (>=9.0.0,<10.0.0)"]
 docs = ["sphinx (>=5.0.0,<10.0.0)", "sphinx-autodoc-typehints (>=1.12.0,<4.0.0)", "sphinx-rtd-theme (>=1.0.0,<4.0.0)"]
-gemini = ["google-genai (>=1.32.0,<2.0.0)"]
-litellm = ["litellm (>=1.75.9,<=1.83.13)", "openai (>=1.68.0,<3.0.0)"]
+gemini = ["google-genai (>=1.32.0,<3.0.0)"]
+litellm = ["litellm (>=1.75.9,<=1.91.1)", "openai (>=1.68.0,<3.0.0)"]
 llamaapi = ["llama-api-client (>=0.1.0,<1.0.0)"]
-mistral = ["mistralai (>=1.8.2,<2.0.0)"]
+mistral = ["mistralai (>=2.0.0,<3.0.0)"]
 ollama = ["ollama (>=0.4.8,<1.0.0)"]
 openai = ["aws-bedrock-token-generator (>=1.1.0,<2.0.0)", "openai (>=1.68.0,<3.0.0)"]
 otel = ["opentelemetry-exporter-otlp-proto-http (>=1.30.0,<2.0.0)"]
 sagemaker = ["boto3-stubs[sagemaker-runtime] (>=1.26.0,<2.0.0)", "openai (>=1.68.0,<3.0.0)"]
-writer = ["writer-sdk (>=2.2.0,<3.0.0)"]
+writer = ["writer-sdk (>=2.2.0,<4.0.0)"]
 
 [[package]]
 name = "structlog"
