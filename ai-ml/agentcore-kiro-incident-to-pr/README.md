@@ -69,7 +69,7 @@ AWS_REGION=ap-northeast-2 kiro-cli chat --agent collector
 
 | 영역 | 기술 |
 |------|------|
-| Frontend | React 18, MUI 7, react-router-dom 6, react-markdown (GFM) |
+| Frontend | React 18, MUI 7, react-router-dom 7, react-markdown (GFM) |
 | Backend API | API Gateway (REST + WebSocket), Lambda (Python 3.12) |
 | Agent Runtime | kiro-agent-sdk, Kiro CLI 2.35.1, Amazon Bedrock AgentCore Runtime (Docker arm64) |
 | Agent 정의 | Kiro custom agents, steering, skills, MCP 서버 (`incident-tools`) |
